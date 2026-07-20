@@ -24,8 +24,21 @@ import Tooltip from '../ui/Tooltip.vue';
 import Menu from '../ui/Menu.vue';
 import MenuItem from '../ui/MenuItem.vue';
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const client = useKimiWebClient();
+
+// M3 Task 3.5:桌面壳注入的最小 API(浏览器中不存在 → 隐藏壳相关入口)。
+interface DesktopBridge {
+  system?: {
+    openPath?: (path: string) => Promise<void>;
+  };
+}
+const desktopBridge: DesktopBridge | undefined = (
+  window as unknown as { desktop?: DesktopBridge }
+).desktop;
+
+const zhLabel = (zh: string, en: string): string =>
+  locale.value.startsWith('zh') ? zh : en;
 
 withDefaults(
   defineProps<{
@@ -50,6 +63,8 @@ const emit = defineEmits<{
   addWorkspace: [];
   /** Archive intent — the modal confirm + async work live in App.vue. */
   archive: [id: string];
+  /** Remove-from-list intent — the modal confirm lives in App.vue (M3 Task 3.5). */
+  deleteWorkspace: [id: string];
   openSettings: [];
   collapse: [];
 }>();
@@ -253,6 +268,7 @@ async function toggleMenu(s: Session, e: Event): Promise<void> {
 
 function closeMenu(): void {
   menuSession.value = null;
+  menuProject.value = null;
   document.removeEventListener('mousedown', onDocClick);
   window.removeEventListener('resize', closeMenu);
 }
@@ -274,6 +290,62 @@ onBeforeUnmount(() => {
   document.removeEventListener('mousedown', onDocClick);
   window.removeEventListener('resize', closeMenu);
 });
+
+// ---------------------------------------------------------------------------
+// Project kebab menu (Open in Finder / Copy path / Remove from list).
+// Reuses the session menu's anchor machinery via a shared close path.
+// M3 Task 3.5:移除只从列表隐藏(官方 deleteWorkspace 语义),不删除本地目录。
+// ---------------------------------------------------------------------------
+const menuProject = ref<{ id: string; name: string; root: string } | null>(null);
+
+async function toggleProjectMenu(
+  g: { workspace: { id: string; name: string; root: string } },
+  e: Event,
+): Promise<void> {
+  e.stopPropagation();
+  if (menuProject.value) {
+    closeMenu();
+    return;
+  }
+  menuProject.value = { ...g.workspace };
+  setTimeout(() => document.addEventListener('mousedown', onDocClick), 0);
+  window.addEventListener('resize', closeMenu);
+  await nextTick();
+  // 直接用事件源的按钮做锚点(kebabRef 被会话行共享,不可靠)
+  const btn = (e.currentTarget as HTMLElement | null) ?? kebabRef.value?.el;
+  if (!btn) return;
+  const menu = menuRef.value?.el;
+  const r = btn.getBoundingClientRect();
+  const gap = 4;
+  const margin = 8;
+  const menuH = menu?.offsetHeight ?? 0;
+  const menuW = menu?.offsetWidth ?? 0;
+  let top = r.bottom + gap;
+  if (top + menuH > window.innerHeight - margin) top = Math.max(margin, r.top - menuH - gap);
+  let left = r.right - menuW;
+  if (left < margin) left = margin;
+  menuStyle.value = { top: `${Math.round(top)}px`, left: `${Math.round(left)}px` };
+}
+
+function openProjectInFinder(): void {
+  const p = menuProject.value;
+  closeMenu();
+  if (p) void desktopBridge?.system?.openPath?.(p.root);
+}
+
+async function copyProjectPath(): Promise<void> {
+  const p = menuProject.value;
+  closeMenu();
+  if (p) await navigator.clipboard.writeText(p.root);
+}
+
+function removeProjectFromList(): void {
+  const p = menuProject.value;
+  closeMenu();
+  // The modal confirm lives in App.vue (confirmDeleteWorkspace); the official
+  // flow only hides the workspace — the local directory is never touched.
+  if (p) emit('deleteWorkspace', p.id);
+}
 </script>
 
 <template>
@@ -404,6 +476,15 @@ onBeforeUnmount(() => {
                 >
                   <Icon name="plus" />
                 </IconButton>
+                <IconButton
+                  ref="kebabRef"
+                  class="codex-proj-kebab"
+                  size="sm"
+                  :label="zhLabel('项目操作', 'Project actions')"
+                  @click="(e: Event) => toggleProjectMenu(g, e)"
+                >
+                  <Icon name="dots-horizontal" size="sm" />
+                </IconButton>
               </div>
 
               <!-- Sessions (hidden while the project is collapsed) -->
@@ -523,6 +604,26 @@ onBeforeUnmount(() => {
         <MenuItem danger @click="archiveFromMenu">
           <Icon name="archive" size="sm" />
           {{ t('sidebar.archive') }}
+        </MenuItem>
+      </Menu>
+      <Menu
+        v-if="menuProject"
+        ref="menuRef"
+        class="codex-menu"
+        :style="menuStyle"
+        @click.stop
+      >
+        <MenuItem v-if="desktopBridge?.system?.openPath" @click="openProjectInFinder">
+          <Icon name="folder" size="sm" />
+          {{ zhLabel('在 Finder 中显示', 'Reveal in Finder') }}
+        </MenuItem>
+        <MenuItem @click="copyProjectPath">
+          <Icon name="copy" size="sm" />
+          {{ t('sidebar.copyPath') }}
+        </MenuItem>
+        <MenuItem danger @click="removeProjectFromList">
+          <Icon name="close" size="sm" />
+          {{ t('sidebar.removeWorkspace') }}
         </MenuItem>
       </Menu>
     </Teleport>

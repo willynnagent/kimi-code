@@ -729,6 +729,7 @@ function openPr(url: string): void {
         @create-in-workspace="handleCreateSessionInWorkspace($event)"
         @add-workspace="showAddWorkspace = true"
         @archive="confirmArchiveSession($event)"
+        @delete-workspace="confirmDeleteWorkspace($event)"
         @open-settings="showSettings = true"
         @collapse="toggleSidebarCollapse"
       />
