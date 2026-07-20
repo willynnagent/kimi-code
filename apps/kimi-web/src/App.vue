@@ -2,7 +2,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, provide, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import Sidebar from './components/Sidebar.vue';
+import CodexSidebar from './components/codex/CodexSidebar.vue';
 import ResizeHandle from './components/ResizeHandle.vue';
 import ConversationPane from './components/chat/ConversationPane.vue';
 import FilePreview from './components/FilePreview.vue';
@@ -721,35 +721,14 @@ function openPr(url: string): void {
     >
     <!-- Desktop navigation: workspace rail + resizable session column. -->
     <template v-if="!isMobile">
-      <Sidebar
+      <CodexSidebar
         :collapsed="sidebarCollapsed"
         :dragging="sidebarDragging"
         :col-width="sideWidth"
-        :active-workspace="client.visibleWorkspace.value"
-        :active-workspace-id="client.activeWorkspaceId.value"
-        :sessions="client.sessionsForView.value"
-        :groups="client.workspaceGroups.value"
-        :active-id="client.activeSessionId.value"
-        :attention-by-session="client.attentionBySession.value"
-        :pending-by-session="client.pendingBySession.value"
-        :unread-by-session="client.unreadBySession.value"
-        :workspace-sort-mode="client.workspaceSortMode.value"
-        :backend="client.backend.value"
-        @select="client.selectSession($event)"
         @create="handleCreateSession"
         @create-in-workspace="handleCreateSessionInWorkspace($event)"
-        @select-workspace="client.openWorkspace($event)"
         @add-workspace="showAddWorkspace = true"
-        @rename="(id, title) => client.renameSession(id, title)"
         @archive="confirmArchiveSession($event)"
-        @fork="(id) => client.forkSession(id)"
-        @export="(id) => client.exportSession(id)"
-        @rename-workspace="(id, name) => client.renameWorkspace(id, name)"
-        @delete-workspace="confirmDeleteWorkspace($event)"
-        @reorder-workspaces="client.reorderWorkspaces($event)"
-        @set-workspace-sort-mode="client.setWorkspaceSortMode($event)"
-        @load-more-sessions="(id) => void client.loadMoreSessions(id)"
-        @load-all-sessions="void client.loadAllSessions()"
         @open-settings="showSettings = true"
         @collapse="toggleSidebarCollapse"
       />
