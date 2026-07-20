@@ -5,7 +5,7 @@
      Destructive actions (archive) and the add-workspace dialog stay in App.vue
      and are reached via emits; everything else calls facade actions inline. -->
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useKimiWebClient } from '../../composables/useKimiWebClient';
 import { isMacosDesktop } from '../../lib/desktopFlag';
@@ -14,6 +14,7 @@ import {
   saveCollapsedWorkspaces,
 } from '../../lib/storage';
 import type { Session } from '../../types';
+import { recallLastSession, rememberLastSession } from './useLastSessionMap';
 import Icon from '../ui/Icon.vue';
 import IconButton from '../ui/IconButton.vue';
 import Badge from '../ui/Badge.vue';
@@ -83,10 +84,38 @@ function toggleCollapse(id: string): void {
   saveCollapsedWorkspaces(next);
 }
 
-// Project click = openWorkspace (facade already has "return to the project's
-// last session" semantics); opening also expands a collapsed group.
+// Project click: return to the project's last VIEWED session (M3 Task 3.3,
+// desktop-owned UI metadata). Falls back to the facade's openWorkspace
+// ("most recently updated") when there is no memory or the remembered
+// session is gone (deleted/archived). Opening also expands a collapsed group.
+function sessionWorkspaceId(sessionId: string): string | null {
+  for (const g of client.workspaceGroups.value) {
+    if (g.sessions.some((s) => s.id === sessionId)) return g.workspace.id;
+  }
+  return null;
+}
+
+// Track the active session and record it as its workspace's last-viewed one.
+watch(
+  () => client.activeSessionId.value,
+  (id) => {
+    if (!id) return;
+    const wid = sessionWorkspaceId(id);
+    if (wid) rememberLastSession(wid, id);
+  },
+);
+
 function openProject(id: string): void {
   if (collapsedIds.value.has(id)) toggleCollapse(id);
+  const remembered = recallLastSession(id, (sid) =>
+    client.workspaceGroups.value.some(
+      (g) => g.workspace.id === id && g.sessions.some((s) => s.id === sid),
+    ),
+  );
+  if (remembered) {
+    client.selectSession(remembered);
+    return;
+  }
   client.openWorkspace(id);
 }
 
