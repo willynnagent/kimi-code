@@ -15,6 +15,7 @@ import {
 } from '../../lib/storage';
 import type { Session } from '../../types';
 import { recallLastSession, rememberLastSession } from './useLastSessionMap';
+import { useBackgroundStatus } from './useBackgroundStatus';
 import Icon from '../ui/Icon.vue';
 import IconButton from '../ui/IconButton.vue';
 import Badge from '../ui/Badge.vue';
@@ -125,7 +126,17 @@ function selectSession(id: string): void {
 
 // ---------------------------------------------------------------------------
 // Per-session badge predicates (same conditions as the old SessionRow).
+// M3 Task 3.4:门面只实时跟踪 LRU 4 个订阅会话;busy/pending 以 REST 全局
+// 覆盖源为准(useBackgroundStatus),让非当前视图的后台会话角标同样准确。
 // ---------------------------------------------------------------------------
+const { statusById } = useBackgroundStatus();
+
+function liveBusy(s: Session): boolean {
+  return statusById.value.get(s.id)?.busy ?? s.busy;
+}
+function livePending(s: Session): 'none' | 'approval' | 'question' {
+  return statusById.value.get(s.id)?.pending ?? s.pendingInteraction ?? 'none';
+}
 function approvalCount(s: Session): number {
   return client.pendingBySession.value[s.id]?.approvals ?? 0;
 }
@@ -133,14 +144,14 @@ function questionCount(s: Session): number {
   return client.pendingBySession.value[s.id]?.questions ?? 0;
 }
 function awaitingQuestion(s: Session): boolean {
-  return questionCount(s) > 0 || s.pendingInteraction === 'question';
+  return questionCount(s) > 0 || livePending(s) === 'question';
 }
 function awaitingApproval(s: Session): boolean {
-  return approvalCount(s) > 0 || s.pendingInteraction === 'approval';
+  return approvalCount(s) > 0 || livePending(s) === 'approval';
 }
 function failed(s: Session): boolean {
   return (
-    !s.busy &&
+    !liveBusy(s) &&
     !awaitingQuestion(s) &&
     !awaitingApproval(s) &&
     (s.lastTurnReason === 'cancelled' || s.lastTurnReason === 'failed')
@@ -148,6 +159,17 @@ function failed(s: Session): boolean {
 }
 function isUnread(s: Session): boolean {
   return client.unreadBySession.value[s.id] ?? false;
+}
+
+/** 项目级聚合角标:组内任一会话后台执行中或等待交互即点亮(覆盖源驱动) */
+function workspaceAttention(workspaceId: string): number {
+  const g = client.workspaceGroups.value.find((x) => x.workspace.id === workspaceId);
+  if (!g) return 0;
+  let n = 0;
+  for (const s of g.sessions) {
+    if (liveBusy(s) || livePending(s) !== 'none') n += 1;
+  }
+  return n + (client.attentionByWorkspace.value[workspaceId] ?? 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -314,7 +336,7 @@ onBeforeUnmount(() => {
             @click="selectSession(s.id)"
           >
             <span class="codex-lead" aria-hidden="true">
-              <Spinner v-if="s.busy" size="sm" />
+              <Spinner v-if="liveBusy(s)" size="sm" />
               <span v-else-if="isUnread(s)" class="codex-unread-dot" />
             </span>
             <span class="codex-se-main">
@@ -367,11 +389,11 @@ onBeforeUnmount(() => {
                 <Icon class="codex-folder" name="folder-closed" />
                 <span class="codex-proj-name">{{ g.workspace.name }}</span>
                 <Tooltip
-                  v-if="(client.attentionByWorkspace.value[g.workspace.id] ?? 0) > 0"
-                  :text="t('workspace.attentionTitle', client.attentionByWorkspace.value[g.workspace.id] ?? 0)"
+                  v-if="workspaceAttention(g.workspace.id) > 0"
+                  :text="t('workspace.attentionTitle', workspaceAttention(g.workspace.id))"
                 >
                   <Badge variant="warning" size="sm">
-                    {{ client.attentionByWorkspace.value[g.workspace.id] }}
+                    {{ workspaceAttention(g.workspace.id) }}
                   </Badge>
                 </Tooltip>
                 <IconButton
@@ -394,7 +416,7 @@ onBeforeUnmount(() => {
                   @click="selectSession(s.id)"
                 >
                   <span class="codex-lead" aria-hidden="true">
-                    <Spinner v-if="s.busy" size="sm" />
+                    <Spinner v-if="liveBusy(s)" size="sm" />
                     <span v-else-if="isUnread(s)" class="codex-unread-dot" />
                   </span>
 
