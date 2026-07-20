@@ -15,7 +15,7 @@ import {
 } from '../../lib/storage';
 import type { Session } from '../../types';
 import { recallLastSession, rememberLastSession } from './useLastSessionMap';
-import { useBackgroundStatus } from './useBackgroundStatus';
+import { isExternallyActive, useBackgroundStatus } from './useBackgroundStatus';
 import Icon from '../ui/Icon.vue';
 import IconButton from '../ui/IconButton.vue';
 import Badge from '../ui/Badge.vue';
@@ -174,6 +174,21 @@ function failed(s: Session): boolean {
 }
 function isUnread(s: Session): boolean {
   return client.unreadBySession.value[s.id] ?? false;
+}
+
+// M4 Task 4.2:外部客户端(CLI 等)活跃指示。判定见 useBackgroundStatus。
+// 首次进入外部活跃时 console.warn 一次(可上报),恢复后清除记录。
+const externalWarned = new Set<string>();
+
+function externallyActive(s: Session): boolean {
+  const active = isExternallyActive(s.id, client.activeSessionId.value, statusById.value);
+  if (active && !externalWarned.has(s.id)) {
+    externalWarned.add(s.id);
+    console.warn(`[codex] session ${s.id} is busy in an external client (possible CLI); concurrent writes may conflict`);
+  } else if (!active) {
+    externalWarned.delete(s.id);
+  }
+  return active;
 }
 
 /** 项目级聚合角标:组内任一会话后台执行中或等待交互即点亮(覆盖源驱动) */
@@ -408,7 +423,13 @@ function removeProjectFromList(): void {
             @click="selectSession(s.id)"
           >
             <span class="codex-lead" aria-hidden="true">
-              <Spinner v-if="liveBusy(s)" size="sm" />
+              <Tooltip
+                v-if="externallyActive(s)"
+                :text="zhLabel('该会话正被外部客户端(如 CLI)使用,同时写入有冲突风险', 'Busy in another client (e.g. CLI) — concurrent writes may conflict')"
+              >
+                <Icon name="terminal" size="sm" class="codex-external" />
+              </Tooltip>
+              <Spinner v-else-if="liveBusy(s)" size="sm" />
               <span v-else-if="isUnread(s)" class="codex-unread-dot" />
             </span>
             <span class="codex-se-main">
@@ -497,7 +518,13 @@ function removeProjectFromList(): void {
                   @click="selectSession(s.id)"
                 >
                   <span class="codex-lead" aria-hidden="true">
-                    <Spinner v-if="liveBusy(s)" size="sm" />
+                    <Tooltip
+                      v-if="externallyActive(s)"
+                      :text="zhLabel('该会话正被外部客户端(如 CLI)使用,同时写入有冲突风险', 'Busy in another client (e.g. CLI) — concurrent writes may conflict')"
+                    >
+                      <Icon name="terminal" size="sm" class="codex-external" />
+                    </Tooltip>
+                    <Spinner v-else-if="liveBusy(s)" size="sm" />
                     <span v-else-if="isUnread(s)" class="codex-unread-dot" />
                   </span>
 
@@ -909,6 +936,7 @@ function removeProjectFromList(): void {
   align-items: center;
   justify-content: center;
 }
+.codex-external { color: var(--color-warning, #d29922); }
 .codex-unread-dot {
   width: 7px;
   height: 7px;

@@ -59,3 +59,18 @@ export function resolveStatus(
   if (o !== undefined) return { busy: o.busy, pending: o.pending };
   return facade;
 }
+
+/**
+ * M4 Task 4.2:外部客户端活跃判定。
+ * 桌面 UI 只有一个 composer,只能在"当前激活会话"里发起 turn——
+ * 因此非激活会话的 busy 一定来自外部(CLI 或其他客户端)。
+ * 激活会话的 busy 可能是本端自己发起的,不报(误报代价大于漏报)。
+ */
+export function isExternallyActive(
+  sessionId: string,
+  activeSessionId: string,
+  overlay: ReadonlyMap<string, BackgroundStatus>,
+): boolean {
+  if (sessionId === activeSessionId) return false;
+  return overlay.get(sessionId)?.busy ?? false;
+}
