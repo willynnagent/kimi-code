@@ -191,15 +191,18 @@ function externallyActive(s: Session): boolean {
   return active;
 }
 
-/** 项目级聚合角标:组内任一会话后台执行中或等待交互即点亮(覆盖源驱动) */
+/** 项目级聚合角标:只数等待交互(待审批/待回答)的会话。
+ *  busy 不计入(会话行已有 spinner,"在跑"不等于"待处理");
+ *  只以 REST 轮询覆盖源计数(全量权威),不再叠加门面 attentionByWorkspace
+ *  (WS 事件驱动、仅覆盖 4 个订阅会话,清除不及时会造成幻影计数)。 */
 function workspaceAttention(workspaceId: string): number {
   const g = client.workspaceGroups.value.find((x) => x.workspace.id === workspaceId);
   if (!g) return 0;
   let n = 0;
   for (const s of g.sessions) {
-    if (liveBusy(s) || livePending(s) !== 'none') n += 1;
+    if (livePending(s) !== 'none') n += 1;
   }
-  return n + (client.attentionByWorkspace.value[workspaceId] ?? 0);
+  return n;
 }
 
 // ---------------------------------------------------------------------------
