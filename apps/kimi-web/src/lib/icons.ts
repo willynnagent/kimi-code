@@ -59,6 +59,7 @@ import RiCodeLine from '~icons/ri/code-line';
 import RiCollapseDiagonalLine from '~icons/ri/collapse-diagonal-line';
 import RiDownloadLine from '~icons/ri/download-line';
 import RiDraggable from '~icons/ri/draggable';
+import RiEditBoxLine from '~icons/ri/edit-box-line';
 import RiEqualizerLine from '~icons/ri/equalizer-line';
 import RiExpandDiagonalLine from '~icons/ri/expand-diagonal-line';
 import RiExternalLinkLine from '~icons/ri/external-link-line';
@@ -131,6 +132,7 @@ import RawCodeLine from '~icons/ri/code-line?raw';
 import RawCollapseDiagonalLine from '~icons/ri/collapse-diagonal-line?raw';
 import RawDownloadLine from '~icons/ri/download-line?raw';
 import RawDraggable from '~icons/ri/draggable?raw';
+import RawEditBoxLine from '~icons/ri/edit-box-line?raw';
 import RawEqualizerLine from '~icons/ri/equalizer-line?raw';
 import RawExpandDiagonalLine from '~icons/ri/expand-diagonal-line?raw';
 import RawExternalLinkLine from '~icons/ri/external-link-line?raw';
@@ -218,6 +220,7 @@ export type IconName =
   | 'code'
   | 'terminal'
   | 'pencil'
+  | 'edit-box'
   | 'tool'
   | 'glob'
   | 'globe'
@@ -304,6 +307,7 @@ export const ICONS: Record<IconName, IconEntry> = {
   code: entry(RiCodeLine, RawCodeLine),
   terminal: entry(RiTerminalBoxLine, RawTerminalBoxLine),
   pencil: entry(RiPencilLine, RawPencilLine),
+  'edit-box': entry(RiEditBoxLine, RawEditBoxLine),
   tool: entry(RiToolsLine, RawToolsLine),
   glob: entry(RiBracesLine, RawBracesLine),
   globe: entry(RiGlobalLine, RawGlobalLine),
@@ -407,6 +411,7 @@ export const ICON_GROUPS: ReadonlyArray<readonly [string, readonly IconName[]]> 
       'code',
       'terminal',
       'pencil',
+      'edit-box',
       'tool',
       'glob',
       'globe',

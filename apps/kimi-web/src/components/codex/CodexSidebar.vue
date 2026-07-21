@@ -495,7 +495,7 @@ function removeProjectFromList(): void {
                   :label="t('workspace.newInGroup')"
                   @click.stop="emit('createInWorkspace', g.workspace.id)"
                 >
-                  <Icon name="plus" />
+                  <Icon name="edit-box" />
                 </IconButton>
                 <IconButton
                   ref="kebabRef"
@@ -574,15 +574,8 @@ function removeProjectFromList(): void {
                   </span>
                 </div>
 
-                <!-- Per-project "+ New Session" (draft; App focuses composer). -->
-                <button
-                  class="codex-new-session"
-                  type="button"
-                  @click.stop="emit('createInWorkspace', g.workspace.id)"
-                >
-                  <Icon name="plus" size="sm" />
-                  <span>{{ t('sidebar.newSession') }}</span>
-                </button>
+                <!-- Per-project new session lives on the project row's hover
+                     compose button; no separate list row. -->
 
                 <button
                   v-if="g.hasMore || g.loadingMore"
@@ -1008,9 +1001,8 @@ function removeProjectFromList(): void {
   outline: none;
 }
 
-/* Per-project "+ New Session" and pagination rows — session-row-shaped quiet
-   list controls; the label aligns under the session titles. */
-.codex-new-session,
+/* Pagination rows — session-row-shaped quiet list controls; the label
+   aligns under the session titles. */
 .codex-show-more {
   display: flex;
   align-items: center;
@@ -1028,12 +1020,8 @@ function removeProjectFromList(): void {
   text-align: left;
   cursor: pointer;
 }
-.codex-new-session:hover,
 .codex-show-more:hover { background: var(--codex-hover); }
-.codex-new-session:focus-visible,
 .codex-show-more:focus-visible { outline: none; box-shadow: var(--p-focus-ring); }
-.codex-new-session svg { flex: none; width: var(--codex-gutter); }
-.codex-new-session span,
 .codex-show-more {
   overflow: hidden;
   text-overflow: ellipsis;

@@ -1,5 +1,5 @@
 export default {
-  openSwitcher: '切换会话 / 工作区',
+  openSwitcher: '切换会话 / 项目',
   openSettings: '会话设置',
   settingsTitle: '会话设置',
   groupSession: '当前会话',
