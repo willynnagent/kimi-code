@@ -488,7 +488,11 @@ function removeProjectFromList(): void {
                     size="sm"
                   />
                 </button>
-                <Icon class="codex-folder" name="folder-outline" />
+                <!-- 文件夹图标随折叠状态切换:折叠=kimi folder(带横线,放大版),展开=ChatGPT 打开文件夹 -->
+                <Icon
+                  class="codex-folder"
+                  :name="isCollapsed(g.workspace.id) ? 'folder-collapsed' : 'folder-outline'"
+                />
                 <span class="codex-proj-name">{{ g.workspace.name }}</span>
                 <Tooltip
                   v-if="workspaceAttention(g.workspace.id) > 0"

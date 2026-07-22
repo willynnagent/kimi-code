@@ -28,6 +28,7 @@ import type { Component } from 'vue';
 // Components (Kimi collection) ----------------------------------------------
 import KimiAddConversation from '~icons/kimi/add-conversation';
 import KimiFolder from '~icons/kimi/folder';
+import KimiFolderCollapsed from '~icons/kimi/folder-collapsed';
 import KimiFolderOpen from '~icons/kimi/folder-open';
 import KimiFolderOutline from '~icons/kimi/folder-outline';
 import KimiMore from '~icons/kimi/more';
@@ -102,6 +103,7 @@ import RiUserLine from '~icons/ri/user-line';
 // Raw SVG strings (Kimi collection) -----------------------------------------
 import RawKimiAddConversation from '~icons/kimi/add-conversation?raw';
 import RawKimiFolder from '~icons/kimi/folder?raw';
+import RawKimiFolderCollapsed from '~icons/kimi/folder-collapsed?raw';
 import RawKimiFolderOpen from '~icons/kimi/folder-open?raw';
 import RawKimiFolderOutline from '~icons/kimi/folder-outline?raw';
 import RawKimiMore from '~icons/kimi/more?raw';
@@ -212,6 +214,7 @@ export type IconName =
   | 'folder-closed'
   | 'folder-plus'
   | 'folder-outline'
+  | 'folder-collapsed'
   | 'folder-solid'
   | 'file'
   | 'file-text'
@@ -300,6 +303,7 @@ export const ICONS: Record<IconName, IconEntry> = {
   'folder-closed': entry(KimiFolder, RawKimiFolder),
   'folder-plus': entry(RiFolderAddLine, RawFolderAddLine),
   'folder-outline': entry(KimiFolderOutline, RawKimiFolderOutline),
+  'folder-collapsed': entry(KimiFolderCollapsed, RawKimiFolderCollapsed),
   'folder-solid': entry(RiFolderFill, RawFolderFill),
   file: entry(RiFileLine, RawFileLine),
   'file-text': entry(RiFileTextLine, RawFileTextLine),
@@ -406,6 +410,7 @@ export const ICON_GROUPS: ReadonlyArray<readonly [string, readonly IconName[]]> 
       'folder-closed',
       'folder-plus',
       'folder-outline',
+      'folder-collapsed',
       'folder-solid',
       'file',
       'file-text',
