@@ -29,6 +29,7 @@ import type { Component } from 'vue';
 import KimiAddConversation from '~icons/kimi/add-conversation';
 import KimiFolder from '~icons/kimi/folder';
 import KimiFolderOpen from '~icons/kimi/folder-open';
+import KimiFolderOutline from '~icons/kimi/folder-outline';
 import KimiMore from '~icons/kimi/more';
 import KimiSearch from '~icons/kimi/search';
 import KimiSetting from '~icons/kimi/setting';
@@ -102,6 +103,7 @@ import RiUserLine from '~icons/ri/user-line';
 import RawKimiAddConversation from '~icons/kimi/add-conversation?raw';
 import RawKimiFolder from '~icons/kimi/folder?raw';
 import RawKimiFolderOpen from '~icons/kimi/folder-open?raw';
+import RawKimiFolderOutline from '~icons/kimi/folder-outline?raw';
 import RawKimiMore from '~icons/kimi/more?raw';
 import RawKimiSearch from '~icons/kimi/search?raw';
 import RawKimiSetting from '~icons/kimi/setting?raw';
@@ -209,6 +211,7 @@ export type IconName =
   | 'folder'
   | 'folder-closed'
   | 'folder-plus'
+  | 'folder-outline'
   | 'folder-solid'
   | 'file'
   | 'file-text'
@@ -296,6 +299,7 @@ export const ICONS: Record<IconName, IconEntry> = {
   folder: entry(KimiFolderOpen, RawKimiFolderOpen),
   'folder-closed': entry(KimiFolder, RawKimiFolder),
   'folder-plus': entry(RiFolderAddLine, RawFolderAddLine),
+  'folder-outline': entry(KimiFolderOutline, RawKimiFolderOutline),
   'folder-solid': entry(RiFolderFill, RawFolderFill),
   file: entry(RiFileLine, RawFileLine),
   'file-text': entry(RiFileTextLine, RawFileTextLine),
@@ -401,6 +405,7 @@ export const ICON_GROUPS: ReadonlyArray<readonly [string, readonly IconName[]]> 
       'folder',
       'folder-closed',
       'folder-plus',
+      'folder-outline',
       'folder-solid',
       'file',
       'file-text',

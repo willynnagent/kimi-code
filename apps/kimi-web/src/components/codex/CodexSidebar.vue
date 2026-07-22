@@ -139,6 +139,12 @@ function selectSession(id: string): void {
   client.selectSession(id);
 }
 
+/** 点击项目行 = 折叠/展开(Codex 语义);展开时恢复该项目最近查看的会话 */
+function onProjectRowClick(id: string): void {
+  if (isCollapsed(id)) openProject(id);
+  else toggleCollapse(id);
+}
+
 // ---------------------------------------------------------------------------
 // Per-session badge predicates (same conditions as the old SessionRow).
 // M3 Task 3.4:门面只实时跟踪 LRU 4 个订阅会话;busy/pending 以 REST 全局
@@ -465,11 +471,11 @@ function removeProjectFromList(): void {
               :key="g.workspace.id"
               class="codex-group"
             >
-              <!-- Project row: click = openWorkspace; chevron = collapse toggle. -->
+              <!-- Project row: click = 折叠/展开(展开时恢复最近会话); chevron 同效。 -->
               <div
                 class="codex-proj"
                 :class="{ on: g.workspace.id === client.activeWorkspaceId.value }"
-                @click="openProject(g.workspace.id)"
+                @click="onProjectRowClick(g.workspace.id)"
               >
                 <button
                   class="codex-chevron"
@@ -482,7 +488,7 @@ function removeProjectFromList(): void {
                     size="sm"
                   />
                 </button>
-                <Icon class="codex-folder" name="folder-closed" />
+                <Icon class="codex-folder" name="folder-outline" />
                 <span class="codex-proj-name">{{ g.workspace.name }}</span>
                 <Tooltip
                   v-if="workspaceAttention(g.workspace.id) > 0"
