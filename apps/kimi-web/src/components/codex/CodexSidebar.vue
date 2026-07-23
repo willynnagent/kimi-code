@@ -23,6 +23,7 @@ import Spinner from '../ui/Spinner.vue';
 import Tooltip from '../ui/Tooltip.vue';
 import Menu from '../ui/Menu.vue';
 import MenuItem from '../ui/MenuItem.vue';
+import CodexUsageBadge from './CodexUsageBadge.vue';
 
 const { t, locale } = useI18n();
 const client = useKimiWebClient();
@@ -607,12 +608,14 @@ function removeProjectFromList(): void {
         </template>
       </div>
 
-      <!-- Footer: settings entry pinned under the list. -->
+      <!-- Footer: settings entry pinned under the list; usage badge (desktop
+           shell only — renders nothing in the browser) sits at the right. -->
       <div class="codex-footer">
         <button class="codex-btn-settings" type="button" @click.stop="emit('openSettings')">
           <Icon name="settings" />
           <span>{{ t('settings.title') }}</span>
         </button>
+        <CodexUsageBadge />
       </div>
     </div>
 
@@ -1048,9 +1051,12 @@ function removeProjectFromList(): void {
   font-family: var(--font-ui);
 }
 
-/* Footer. */
+/* Footer: settings row + desktop usage badge (right-aligned). */
 .codex-footer {
   flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
   padding: var(--space-2) var(--codex-inset);
   border-top: 1px solid var(--line);
 }
@@ -1058,7 +1064,7 @@ function removeProjectFromList(): void {
   display: flex;
   align-items: center;
   gap: 12px;
-  width: 100%;
+  flex: 1;
   min-width: 0;
   padding: 8px calc(var(--codex-pad-x) - var(--codex-inset));
   border: none;
