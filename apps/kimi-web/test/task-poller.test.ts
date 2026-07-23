@@ -44,9 +44,12 @@ function subagent(id: string, overrides: Partial<AppTask> = {}): AppTask {
 /** The same background subagent as seen on the two channels: WS keys it by
     agent id, REST by background-task id (`backgroundTaskId` links them).
     The live row is already completed so the poller's 1s output polling does
-    not start racing the one-off backfill under test. */
+    not start racing the one-off backfill under test. A WS-owned row always
+    carries a subagentPhase (patchSubagent defaults to 'queued') — only
+    REST-introduced rows lack it. */
 function liveRow(): AppTask {
   return subagent('agent-1', {
+    subagentPhase: 'completed',
     runInBackground: true,
     backgroundTaskId: 'task-9',
     status: 'completed',

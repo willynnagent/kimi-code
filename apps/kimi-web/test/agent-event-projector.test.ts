@@ -580,3 +580,152 @@ describe('background subagent task registration', () => {
     ]);
   });
 });
+
+describe('background subagent termination (F21)', () => {
+  function spawnBackgroundAgent(projector: ReturnType<typeof createAgentProjector>): void {
+    projector.project(
+      'subagent.spawned',
+      { subagentId: 'agent-1', description: 'Explore repo', runInBackground: true },
+      's1',
+    );
+    projector.project(
+      'task.started',
+      {
+        info: {
+          taskId: 'task-9',
+          kind: 'agent',
+          detached: true,
+          agentId: 'agent-1',
+          description: 'Explore repo',
+          startedAt: 1767225600000,
+        },
+      },
+      's1',
+    );
+  }
+
+  it('re-keys task.terminated to the agent id so the WS-owned row completes', () => {
+    const projector = createAgentProjector();
+    spawnBackgroundAgent(projector);
+
+    const events = projector.project(
+      'task.terminated',
+      { info: { taskId: 'task-9', kind: 'agent', status: 'completed' } },
+      's1',
+    );
+
+    expect(events).toEqual([
+      { type: 'taskCompleted', sessionId: 's1', taskId: 'agent-1', status: 'completed' },
+    ]);
+  });
+
+  it('propagates the failed status through the agent-id re-key', () => {
+    const projector = createAgentProjector();
+    spawnBackgroundAgent(projector);
+
+    const events = projector.project(
+      'task.terminated',
+      { info: { taskId: 'task-9', kind: 'agent', status: 'failed' } },
+      's1',
+    );
+
+    expect(events).toEqual([
+      { type: 'taskCompleted', sessionId: 's1', taskId: 'agent-1', status: 'failed' },
+    ]);
+  });
+
+  it('falls back to the raw task id when no agent mapping is known', () => {
+    const projector = createAgentProjector();
+
+    const events = projector.project(
+      'task.terminated',
+      { info: { taskId: 'task-unknown', kind: 'agent', status: 'completed' } },
+      's1',
+    );
+
+    expect(events).toEqual([
+      { type: 'taskCompleted', sessionId: 's1', taskId: 'task-unknown', status: 'completed' },
+    ]);
+  });
+
+  it('does not revive a terminated row to running on a late progress frame', () => {
+    const projector = createAgentProjector();
+    spawnBackgroundAgent(projector);
+    projector.project(
+      'task.terminated',
+      { info: { taskId: 'task-9', kind: 'agent', status: 'completed' } },
+      's1',
+    );
+
+    const progress = projector.project(
+      'tool.use',
+      { agentId: 'agent-1', name: 'read', args: { path: 'src/foo.ts' } },
+      's1',
+    );
+
+    // No taskCreated re-projection — that would flip the row back to running.
+    expect(progress.filter((e) => e.type === 'taskCreated')).toEqual([]);
+    // The progress text itself is still forwarded.
+    expect(progress).toContainEqual(
+      expect.objectContaining({ type: 'taskProgress', taskId: 'agent-1' }),
+    );
+  });
+
+  it('does not revive a terminated row to running on a late text delta', () => {
+    const projector = createAgentProjector();
+    spawnBackgroundAgent(projector);
+    projector.project(
+      'task.terminated',
+      { info: { taskId: 'task-9', kind: 'agent', status: 'completed' } },
+      's1',
+    );
+
+    const events = projector.project('assistant.delta', { agentId: 'agent-1', delta: 'late' }, 's1');
+
+    expect(events.filter((e) => e.type === 'taskCreated')).toEqual([]);
+    expect(events).toContainEqual({
+      type: 'taskProgress',
+      sessionId: 's1',
+      taskId: 'agent-1',
+      outputChunk: 'late',
+      stream: 'stdout',
+      kind: 'text',
+    });
+  });
+
+  it('guards rows terminated via subagent.completed against late frames too', () => {
+    const projector = createAgentProjector();
+    projector.project(
+      'subagent.spawned',
+      { subagentId: 'agent-2', description: 'fg agent' },
+      's1',
+    );
+    projector.project('subagent.completed', { subagentId: 'agent-2', resultSummary: 'done' }, 's1');
+
+    const progress = projector.project(
+      'tool.use',
+      { agentId: 'agent-2', name: 'read', args: { path: 'x.ts' } },
+      's1',
+    );
+
+    expect(progress.filter((e) => e.type === 'taskCreated')).toEqual([]);
+    expect(progress).toContainEqual(
+      expect.objectContaining({ type: 'taskProgress', taskId: 'agent-2' }),
+    );
+  });
+
+  it('still projects progress normally while the row is live', () => {
+    const projector = createAgentProjector();
+    spawnBackgroundAgent(projector);
+
+    const progress = projector.project(
+      'tool.use',
+      { agentId: 'agent-1', name: 'read', args: { path: 'src/foo.ts' } },
+      's1',
+    );
+
+    const created = progress.filter((e) => e.type === 'taskCreated');
+    expect(created).toHaveLength(1);
+    expect(created[0]).toMatchObject({ task: { id: 'agent-1', status: 'running' } });
+  });
+});

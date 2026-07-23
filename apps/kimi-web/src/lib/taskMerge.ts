@@ -21,10 +21,26 @@ import type { AppTask } from '../api/types';
  * registration). Fold the REST copy into the WS-owned row so one agent does
  * not surface as two rows; REST still corrects a terminal status the WS row
  * may have missed while disconnected.
+ *
+ * Heuristic (misjudgment boundary documented): a subagent row WITHOUT
+ * `subagentPhase` was itself introduced by an earlier REST `/tasks` poll —
+ * every WS/roster-owned row carries a phase (`patchSubagent` defaults to
+ * 'queued'; the snapshot roster always sets `subagent_phase`; the REST task
+ * projection never does). This happens on the FOREGROUND-subagent path: the
+ * daemon registers the agent in the background-task store (so REST lists it,
+ * keyed by a task id no WS event ever references) but emits no
+ * `task.started`/`task.terminated` for it, and removes the entry outright
+ * when the agent finishes (no terminal ghost). Such a row must NOT be kept
+ * when the fresh REST list omits it — otherwise it stays "running" forever
+ * (F21). WS/roster-owned rows are unaffected; should the daemon ever start
+ * filling `subagent_phase` on REST tasks, these rows would simply be kept
+ * again while REST still governs their status — no worse than before.
  */
 export function keepLiveSubagents(restBased: AppTask[], existing: AppTask[]): AppTask[] {
   const restIds = new Set(restBased.map((t) => t.id));
-  const liveSubagents = existing.filter((t) => t.kind === 'subagent' && !restIds.has(t.id));
+  const liveSubagents = existing.filter(
+    (t) => t.kind === 'subagent' && t.subagentPhase !== undefined && !restIds.has(t.id),
+  );
   if (liveSubagents.length === 0) return restBased;
   const restById = new Map(restBased.map((t) => [t.id, t] as const));
   const foldedRestIds = new Set<string>();

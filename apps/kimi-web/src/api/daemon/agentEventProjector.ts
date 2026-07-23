@@ -294,12 +294,18 @@ function projectSubagentProgress(
     // never received the lifecycle taskCreated, and the reducer only applies
     // taskProgress to existing tasks — without this, the deltas are dropped and
     // the live detail stays blank until a non-text frame recreates the task.
+    // Terminal guard: a row that already reached a final status must not be
+    // revived to 'running' by a late delta racing the terminal event — forward
+    // the text only, without re-projecting the task.
     const previous = state.subagentMeta.get(subagentId);
-    const task = patchSubagent(state, sessionId, subagentId, {
-      status: 'running',
-      subagentPhase: 'working',
-      startedAt: previous?.startedAt ?? new Date().toISOString(),
-    });
+    const terminal = previous?.status === 'completed' || previous?.status === 'failed';
+    const task = terminal
+      ? null
+      : patchSubagent(state, sessionId, subagentId, {
+          status: 'running',
+          subagentPhase: 'working',
+          startedAt: previous?.startedAt ?? new Date().toISOString(),
+        });
     const out: AppEvent[] = [];
     if (task) out.push({ type: 'taskCreated', sessionId, task });
     out.push({
@@ -316,11 +322,16 @@ function projectSubagentProgress(
   const text = subagentProgressText(rawType, payload);
   if (text === null || text.length === 0) return [];
   const previous = state.subagentMeta.get(subagentId);
-  const task = patchSubagent(state, sessionId, subagentId, {
-    status: 'running',
-    subagentPhase: 'working',
-    startedAt: previous?.startedAt ?? new Date().toISOString(),
-  });
+  // Terminal guard: same as the assistant.delta branch above — a late progress
+  // frame must not flip a completed/failed row back to 'running'.
+  const terminal = previous?.status === 'completed' || previous?.status === 'failed';
+  const task = terminal
+    ? null
+    : patchSubagent(state, sessionId, subagentId, {
+        status: 'running',
+        subagentPhase: 'working',
+        startedAt: previous?.startedAt ?? new Date().toISOString(),
+      });
   const out: AppEvent[] = [];
   if (task) out.push({ type: 'taskCreated', sessionId, task });
   out.push({ type: 'taskProgress', sessionId, taskId: subagentId, outputChunk: text, stream: 'stdout' });
@@ -1286,15 +1297,37 @@ export function createAgentProjector(): AgentProjector {
         const failed =
           info.status === 'failed' ||
           (typeof info.exitCode === 'number' && info.exitCode !== 0);
+        const rawTaskId =
+          typeof info.taskId === 'string'
+            ? info.taskId
+            : typeof info.taskId === 'number'
+              ? String(info.taskId)
+              : '';
+        // A background subagent terminates under its background-task id, but
+        // its panel row is keyed by agent id (task.started recorded the mapping
+        // on subagentMeta). Reverse-lookup the agent id so the terminal event
+        // actually lands on the row — keyed by the background-task id it would
+        // match nothing and the row would stay "running" until a refresh.
+        let taskId = rawTaskId;
+        if (info.kind === 'agent') {
+          for (const [agentId, meta] of s.subagentMeta) {
+            if (meta.backgroundTaskId === rawTaskId) {
+              taskId = agentId;
+              // Mark the meta terminal so a late progress frame racing this
+              // event cannot revive the row (guard in projectSubagentProgress).
+              patchSubagent(s, sessionId, agentId, {
+                status: failed ? 'failed' : 'completed',
+                subagentPhase: failed ? 'failed' : 'completed',
+                completedAt: new Date().toISOString(),
+              });
+              break;
+            }
+          }
+        }
         out.push({
           type: 'taskCompleted',
           sessionId,
-          taskId:
-            typeof info.taskId === 'string'
-              ? info.taskId
-              : typeof info.taskId === 'number'
-                ? String(info.taskId)
-                : '',
+          taskId,
           status: failed ? 'failed' : 'completed',
           // Do NOT set outputPreview here. The command is already kept on the
           // task as `command`; setting outputPreview to `$ <command>` would

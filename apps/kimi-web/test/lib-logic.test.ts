@@ -774,13 +774,50 @@ describe('keepLiveSubagents', () => {
 
   it('keeps WS-only swarm subagents that REST omits', () => {
     const rest: AppTask[] = [];
-    const merged = keepLiveSubagents(rest, [subagent('a1')]);
+    // A WS-owned row always carries a subagentPhase (patchSubagent defaults
+    // to 'queued'); only REST-introduced rows lack it.
+    const merged = keepLiveSubagents(rest, [subagent('a1', { subagentPhase: 'working' })]);
     expect(merged.map((t) => t.id)).toEqual(['a1']);
+  });
+
+  it('drops a REST-introduced row once the daemon removes it from the store (F21)', () => {
+    // Foreground-subagent path: the row arrived via REST /tasks (no
+    // subagentPhase — the REST projection never sets one), keyed by a
+    // background-task id no WS event references. The daemon deletes the
+    // entry when the agent finishes instead of keeping a terminal ghost,
+    // so the next poll returns an empty list and the row must disappear
+    // instead of staying "running" forever.
+    const restRow = subagent('task-42', { runInBackground: true });
+    const merged = keepLiveSubagents([], [restRow]);
+    expect(merged).toEqual([]);
+  });
+
+  it('keeps a REST-introduced row while REST still returns it', () => {
+    const restRow = subagent('task-42', { runInBackground: true });
+    const merged = keepLiveSubagents([restRow], [restRow]);
+    expect(merged.map((t) => t.id)).toEqual(['task-42']);
+  });
+
+  it('keeps the WS-owned foreground row after its REST twin is dropped', () => {
+    // subagent.completed already settled the WS row; the REST twin vanished
+    // from the store. The completed WS row stays (inline Agent card), the
+    // stuck REST row goes.
+    const wsRow = subagent('agent-12', {
+      subagentPhase: 'completed',
+      status: 'completed',
+      runInBackground: false,
+      parentToolCallId: 'tool-1',
+      completedAt: '2026-01-01T00:01:00.000Z',
+    });
+    const restRow = subagent('task-42', { runInBackground: true });
+    const merged = keepLiveSubagents([], [wsRow, restRow]);
+    expect(merged.map((t) => t.id)).toEqual(['agent-12']);
   });
 
   it('folds a REST background-subagent row into the WS row keyed by agent id', () => {
     // The same background subagent: WS keys it by agent id, REST by task id.
     const live = subagent('agent-1', {
+      subagentPhase: 'working',
       runInBackground: true,
       backgroundTaskId: 'task-9',
       outputLines: ['step 1'],
@@ -831,6 +868,7 @@ describe('keepLiveSubagents', () => {
 
   it('never lets a lagging poll flip a finished row back to running', () => {
     const live = subagent('agent-1', {
+      subagentPhase: 'completed',
       runInBackground: true,
       backgroundTaskId: 'task-9',
       status: 'completed',
@@ -845,6 +883,7 @@ describe('keepLiveSubagents', () => {
     // The live row carries a preview folded in by an earlier poll; the fresh
     // REST row has the final persisted output and must win.
     const live = subagent('agent-1', {
+      subagentPhase: 'working',
       runInBackground: true,
       backgroundTaskId: 'task-9',
       outputPreview: 'stale tail',
