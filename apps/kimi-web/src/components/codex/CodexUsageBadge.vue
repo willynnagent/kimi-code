@@ -12,7 +12,9 @@ import {
   formatHitRate,
   formatResetAt,
   formatTokenCount,
+  formatUpdatedAt,
   formatUsedPct,
+  resolveUpdatedAt,
   resolveUsageApi,
   useDesktopUsage,
   type DesktopUsageBridge,
@@ -80,6 +82,13 @@ const totalInput = computed(() => {
   const t = dailyTotals.value;
   return t ? t.cacheRead + t.inputMiss : 0;
 });
+
+// F22:弹层顶部"更新于 HH:mm:ss";quota/daily 取较旧者,stale 时标注(缓存)。
+const updatedAt = computed(() => resolveUpdatedAt(quota.value, daily.value));
+const updatedAtText = computed(() => {
+  const u = updatedAt.value;
+  return u ? formatUpdatedAt(u.at, u.stale, zh.value) : '';
+});
 </script>
 
 <template>
@@ -90,6 +99,15 @@ const totalInput = computed(() => {
     </button>
 
     <div class="codex-usage-pop" role="tooltip">
+      <!-- F22:最近取数时间;stale 时降低视觉权重并标注缓存 -->
+      <div
+        v-if="updatedAtText"
+        class="codex-usage-updated"
+        :class="{ 'codex-usage-updated-stale': updatedAt?.stale }"
+      >
+        {{ updatedAtText }}
+      </div>
+
       <!-- R1:订阅额度 -->
       <div class="codex-usage-section">
         <div class="codex-usage-title">{{ zhLabel('订阅额度', 'Subscription quota') }}</div>
@@ -298,5 +316,16 @@ const totalInput = computed(() => {
   height: 1px;
   margin: var(--space-3) 0;
   background: var(--line);
+}
+/* F22:弹层顶部取数时间,小字灰显;stale 时进一步降低视觉权重 */
+.codex-usage-updated {
+  margin-bottom: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  line-height: var(--leading-tight);
+  user-select: none;
+}
+.codex-usage-updated-stale {
+  color: var(--color-text-faint);
 }
 </style>

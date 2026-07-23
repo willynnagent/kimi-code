@@ -6,7 +6,9 @@ import {
   formatHitRate,
   formatResetAt,
   formatTokenCount,
+  formatUpdatedAt,
   formatUsedPct,
+  resolveUpdatedAt,
   resolveUsageApi,
   type DesktopUsageApi,
   type QuotaStatus,
@@ -31,6 +33,7 @@ const okQuota: QuotaStatus = {
 const okDaily: DailyUsageStats = {
   kind: 'ok',
   totals: { date: '2026-07-22', cacheRead: 100, inputMiss: 50, output: 10, hitRate: 2 / 3 },
+  fetchedAt: 2,
   stale: false,
 };
 
@@ -106,16 +109,79 @@ describe('formatCents / formatHitRate / formatUsedPct', () => {
     expect(formatCents(0, 'CNY')).toContain('0.00');
   });
 
-  it('命中率:null → "—",否则四舍五入百分比', () => {
+  it('命中率:null → "—",否则整数百分比', () => {
     expect(formatHitRate(null)).toBe('—');
     expect(formatHitRate(2 / 3)).toBe('67%');
     expect(formatHitRate(1)).toBe('100%');
+    expect(formatHitRate(0.3286)).toBe('33%');
   });
 
-  it('已用占比(剩余换算):null → "—",否则 1-pct 百分比', () => {
+  it('已用占比(剩余换算):null → "—",否则整数百分比', () => {
     expect(formatUsedPct(null)).toBe('—');
     expect(formatUsedPct(0.81)).toBe('19%');
     expect(formatUsedPct(0)).toBe('100%');
+    expect(formatUsedPct(0.6714)).toBe('33%');
+  });
+});
+
+describe('formatUpdatedAt(F22:取数时间)', () => {
+  const at = new Date(2026, 6, 22, 14, 3, 5).getTime(); // 14:03:05 本地时间
+
+  it('正常 → "更新于 HH:mm:ss" / "Updated HH:mm:ss"', () => {
+    expect(formatUpdatedAt(at, false, true)).toBe('更新于 14:03:05');
+    expect(formatUpdatedAt(at, false, false)).toBe('Updated 14:03:05');
+  });
+
+  it('stale → 追加缓存标注', () => {
+    expect(formatUpdatedAt(at, true, true)).toBe('更新于 14:03:05(缓存)');
+    expect(formatUpdatedAt(at, true, false)).toBe('Updated 14:03:05 (cached)');
+  });
+
+  it('非法时间戳 → 空串', () => {
+    expect(formatUpdatedAt(Number.NaN, false, true)).toBe('');
+  });
+});
+
+describe('resolveUpdatedAt(F22:取较旧的取数时刻)', () => {
+  const quotaAt = (fetchedAt: number, stale = false): QuotaStatus => ({
+    kind: 'ok',
+    plan: null,
+    weekly: null,
+    fiveHour: null,
+    others: [],
+    booster: null,
+    fetchedAt,
+    stale,
+  });
+  const dailyAt = (fetchedAt: number, stale = false): DailyUsageStats =>
+    okDaily.kind === 'ok'
+      ? { kind: 'ok', totals: okDaily.totals, fetchedAt, stale }
+      : { kind: 'error', error: 'unreachable' };
+
+  it('两边都 ok → 取较旧者;任一侧 stale 即整体 stale', () => {
+    expect(resolveUpdatedAt(quotaAt(200), dailyAt(100))).toEqual({ at: 100, stale: false });
+    expect(resolveUpdatedAt(quotaAt(100), dailyAt(200))).toEqual({ at: 100, stale: false });
+    expect(resolveUpdatedAt(quotaAt(200, true), dailyAt(100))).toEqual({ at: 100, stale: true });
+    expect(resolveUpdatedAt(quotaAt(200), dailyAt(100, true))).toEqual({ at: 100, stale: true });
+  });
+
+  it('仅一侧 ok → 用该侧;另一侧 error/unauthorized 不参与', () => {
+    expect(resolveUpdatedAt(quotaAt(150), { kind: 'error', error: 'x' })).toEqual({
+      at: 150,
+      stale: false,
+    });
+    expect(resolveUpdatedAt({ kind: 'unauthorized' }, dailyAt(160, true))).toEqual({
+      at: 160,
+      stale: true,
+    });
+    expect(resolveUpdatedAt(null, dailyAt(170))).toEqual({ at: 170, stale: false });
+  });
+
+  it('两边都未取到 → null(不渲染该行)', () => {
+    expect(resolveUpdatedAt(null, null)).toBeNull();
+    expect(
+      resolveUpdatedAt({ kind: 'error', error: 'x' }, { kind: 'error', error: 'y' }),
+    ).toBeNull();
   });
 });
 

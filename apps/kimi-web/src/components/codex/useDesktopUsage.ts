@@ -50,7 +50,13 @@ export interface DailyUsageTotals {
 }
 
 export type DailyUsageStats =
-  | { kind: 'ok'; totals: DailyUsageTotals; stale: boolean }
+  | {
+      kind: 'ok';
+      totals: DailyUsageTotals;
+      /** 本次取数成功的 epoch 毫秒;stale 时为上次成功取数时刻 */
+      fetchedAt: number;
+      stale: boolean;
+    }
   | { kind: 'error'; error: string };
 
 /** 壳 preload 暴露的最小接口(每层可选;浏览器环境整个 desktop 不存在) */
@@ -139,6 +145,38 @@ export function formatHitRate(hitRate: number | null): string {
 export function formatUsedPct(remainingPct: number | null): string {
   if (remainingPct === null) return '—';
   return `${Math.round((1 - remainingPct) * 100)}%`;
+}
+
+/** F22:取数成功时刻 → "更新于 14:03:22";stale 追加"(缓存)"。非法时间戳返回空串。 */
+export function formatUpdatedAt(fetchedAt: number, stale: boolean, zh: boolean): string {
+  const d = new Date(fetchedAt);
+  if (!Number.isFinite(d.getTime())) return '';
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  const hms = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  const base = zh ? `更新于 ${hms}` : `Updated ${hms}`;
+  return stale ? `${base}${zh ? '(缓存)' : ' (cached)'}` : base;
+}
+
+/**
+ * F22:弹层顶部时间行取 quota / daily 中较旧的取数时刻(数据整体不新于它);
+ * 任一为 stale 即整体标 stale。两边都未取到 → null(不渲染该行)。
+ */
+export function resolveUpdatedAt(
+  quota: QuotaStatus | null,
+  daily: DailyUsageStats | null,
+): { at: number; stale: boolean } | null {
+  const stamps: number[] = [];
+  let stale = false;
+  if (quota?.kind === 'ok') {
+    stamps.push(quota.fetchedAt);
+    stale = stale || quota.stale;
+  }
+  if (daily?.kind === 'ok') {
+    stamps.push(daily.fetchedAt);
+    stale = stale || daily.stale;
+  }
+  if (stamps.length === 0) return null;
+  return { at: Math.min(...stamps), stale };
 }
 
 export interface UsageState {
