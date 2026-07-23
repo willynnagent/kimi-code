@@ -48,6 +48,7 @@ import IconButton from './components/ui/IconButton.vue';
 import Icon from './components/ui/Icon.vue';
 import InternalBuildBanner from './components/InternalBuildBanner.vue';
 import { isMacosDesktop } from './lib/desktopFlag';
+import { onDesktopToggleSidebar } from './lib/desktopEvents';
 
 // Hydrate the server-transport credential (fragment token or localStorage)
 // BEFORE the client connects, so the first REST/WS calls already carry it.
@@ -57,6 +58,8 @@ initServerAuth();
 // `--dangerous-bypass-auth` mode, before /meta had advertised the bypass.
 const authRequired = ref(false);
 let offAuthRequired: (() => void) | null = null;
+// F15:壳侧菜单(⌘B)经 preload 派发 desktop:toggle-sidebar → 切换侧栏折叠。
+let offDesktopToggleSidebar: (() => void) | null = null;
 
 const client = useKimiWebClient();
 // When the server runs with `--dangerous-bypass-auth`, `/meta` advertises it
@@ -184,6 +187,7 @@ onMounted(() => {
   window.visualViewport?.addEventListener('resize', syncAppHeight);
   window.visualViewport?.addEventListener('scroll', syncAppHeight);
   window.addEventListener('resize', syncAppHeight);
+  offDesktopToggleSidebar = onDesktopToggleSidebar(toggleSidebarCollapse);
   // Capture-phase so Escape closes the side detail layer BEFORE the
   // conversation pane's bubble-phase handler interrupts a running prompt.
   document.addEventListener('keydown', onGlobalKeydown, true);
@@ -194,6 +198,10 @@ onUnmounted(() => {
   window.visualViewport?.removeEventListener('resize', syncAppHeight);
   window.visualViewport?.removeEventListener('scroll', syncAppHeight);
   window.removeEventListener('resize', syncAppHeight);
+  if (offDesktopToggleSidebar !== null) {
+    offDesktopToggleSidebar();
+    offDesktopToggleSidebar = null;
+  }
   if (appHeightRaf) {
     cancelAnimationFrame(appHeightRaf);
     appHeightRaf = 0;
@@ -786,6 +794,7 @@ function openPr(url: string): void {
       :search-files="client.searchFiles"
       :upload-image="client.uploadImage"
       :working="client.working.value"
+      :working-elapsed-seconds="client.workingElapsedSeconds.value"
       :starting="client.isStartingFirstPrompt.value"
       :fast-moon="client.fastMoon.value"
       :file-reload-key="client.activeSessionId.value"

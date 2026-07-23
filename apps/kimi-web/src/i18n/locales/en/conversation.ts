@@ -9,6 +9,7 @@ export default {
   addWorkspace: 'New workspace',
   moreWorkspaces: 'More workspaces ({count})',
   compacting: 'Compacting context…',
+  workingElapsed: 'Working · {elapsed}',
   compactedPlain: 'Context compacted',
   compactedAuto: 'Context auto-compacted',
   compactedTokens: ' ({before} → {after} tokens)',

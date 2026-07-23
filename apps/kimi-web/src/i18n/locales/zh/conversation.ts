@@ -9,6 +9,7 @@ export default {
   addWorkspace: '添加项目',
   moreWorkspaces: '更多项目 ({count})',
   compacting: '正在压缩上下文…',
+  workingElapsed: '工作中 · {elapsed}',
   compactedPlain: '上下文已压缩',
   compactedAuto: '已自动压缩上下文',
   compactedTokens: '（{before} → {after} tokens）',

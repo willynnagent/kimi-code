@@ -55,6 +55,9 @@ const props = defineProps<{
   /** The main conversation has an unfinished prompt (submitted or a main turn
    *  in flight) — the working moon. */
   working?: boolean;
+  /** Whole seconds since the current turn started; null while idle. Rendered
+   *  next to the working moon as a live elapsed timer. */
+  workingElapsedSeconds?: number | null;
   /** True while the empty-composer first prompt is being created + submitted.
    *  Drives the empty-session "starting conversation…" loading state. */
   starting?: boolean;
@@ -1415,6 +1418,7 @@ defineExpose({ loadComposerForEdit, focusComposer });
               :approvals="approvals"
               :turn-active="turnActive"
               :working="working"
+              :working-elapsed-seconds="workingElapsedSeconds ?? null"
               :fast-moon="fastMoon"
               :session-loading="sessionLoading"
               :compaction="compaction"

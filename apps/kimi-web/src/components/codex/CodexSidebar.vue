@@ -15,6 +15,13 @@ import {
 } from '../../lib/storage';
 import type { Session } from '../../types';
 import { recallLastSession, rememberLastSession } from './useLastSessionMap';
+import {
+  loadPinnedWorkspaces,
+  orderWithPinnedFirst,
+  prunePinnedWorkspaces,
+  savePinnedWorkspaces,
+  toggleWorkspacePinned,
+} from './usePinnedWorkspaces';
 import { isExternallyActive, useBackgroundStatus } from './useBackgroundStatus';
 import Icon from '../ui/Icon.vue';
 import IconButton from '../ui/IconButton.vue';
@@ -100,6 +107,46 @@ function toggleCollapse(id: string): void {
   collapsedIds.value = next;
   saveCollapsedWorkspaces(next);
 }
+
+// ---------------------------------------------------------------------------
+// F17:置顶项目(localStorage `codex.pinnedWorkspaces`,纯 UI 元数据)。
+// 置顶项目排在列表最前;置顶组与非置顶组内部各自保持官方 recent 排序。
+// ---------------------------------------------------------------------------
+const pinnedIds = ref<string[]>(loadPinnedWorkspaces());
+
+const sortedGroups = computed(() =>
+  orderWithPinnedFirst(
+    client.workspaceGroups.value,
+    pinnedIds.value,
+    (g) => g.workspace.id,
+  ),
+);
+
+function isPinned(id: string): boolean {
+  return pinnedIds.value.includes(id);
+}
+
+function togglePin(id: string): void {
+  pinnedIds.value = toggleWorkspacePinned(pinnedIds.value, id);
+  savePinnedWorkspaces(pinnedIds.value);
+}
+
+// workspace 被移除后清理 pinned 里的残留 id。initialized 之前列表尚未加载,
+// 不能把"暂时为空"误判成"全部失效"而清空置顶。
+watch(
+  () =>
+    [
+      client.initialized.value,
+      client.workspaceGroups.value.map((g) => g.workspace.id),
+    ] as const,
+  ([ready, ids]) => {
+    if (!ready) return;
+    const { next, changed } = prunePinnedWorkspaces(pinnedIds.value, new Set(ids));
+    if (!changed) return;
+    pinnedIds.value = next;
+    savePinnedWorkspaces(next);
+  },
+);
 
 // Project click: return to the project's last VIEWED session (M3 Task 3.3,
 // desktop-owned UI metadata). Falls back to the facade's openWorkspace
@@ -371,6 +418,12 @@ function removeProjectFromList(): void {
   // flow only hides the workspace — the local directory is never touched.
   if (p) emit('deleteWorkspace', p.id);
 }
+
+function togglePinFromMenu(): void {
+  const p = menuProject.value;
+  closeMenu();
+  if (p) togglePin(p.id);
+}
 </script>
 
 <template>
@@ -468,7 +521,7 @@ function removeProjectFromList(): void {
             </div>
 
             <div
-              v-for="g in client.workspaceGroups.value"
+              v-for="g in sortedGroups"
               :key="g.workspace.id"
               class="codex-group"
             >
@@ -495,6 +548,12 @@ function removeProjectFromList(): void {
                   :name="isCollapsed(g.workspace.id) ? 'folder-collapsed' : 'folder-outline'"
                 />
                 <span class="codex-proj-name">{{ g.workspace.name }}</span>
+                <Icon
+                  v-if="isPinned(g.workspace.id)"
+                  name="star"
+                  size="sm"
+                  class="codex-pin"
+                />
                 <Tooltip
                   v-if="workspaceAttention(g.workspace.id) > 0"
                   :text="t('workspace.attentionTitle', workspaceAttention(g.workspace.id))"
@@ -649,6 +708,10 @@ function removeProjectFromList(): void {
         :style="menuStyle"
         @click.stop
       >
+        <MenuItem @click="togglePinFromMenu">
+          <Icon :name="menuProject && isPinned(menuProject.id) ? 'star-outline' : 'star'" size="sm" />
+          {{ menuProject && isPinned(menuProject.id) ? t('sidebar.unpinWorkspace') : t('sidebar.pinWorkspace') }}
+        </MenuItem>
         <MenuItem v-if="desktopBridge?.system?.openPath" @click="openProjectInFinder">
           <Icon name="folder" size="sm" />
           {{ zhLabel('在 Finder 中显示', 'Reveal in Finder') }}
@@ -911,6 +974,12 @@ function removeProjectFromList(): void {
   white-space: nowrap;
 }
 .codex-proj.on .codex-proj-name { color: var(--color-text); }
+/* F17:置顶标记(项目名右侧的小星标)。 */
+.codex-pin {
+  flex: none;
+  color: var(--color-accent);
+}
+.codex-pin svg { width: 12px; height: 12px; }
 /* Per-project "+ New Session" — revealed on hover/keyboard focus. */
 .codex-proj-add {
   flex: none;

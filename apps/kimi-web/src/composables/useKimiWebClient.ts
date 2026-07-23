@@ -17,6 +17,7 @@ import { mergeWorkspaces } from '../lib/mergeWorkspaces';
 import { workspaceRootKey } from '../lib/rootKey';
 import { mergeSnapshotMessages } from '../lib/snapshotMessages';
 import { mergeSnapshotSubagents } from '../lib/taskMerge';
+import { createTurnStartTracker } from '../lib/turnStartTracker';
 import { createCoalescedAsyncRunner } from '../lib/snapshotSync';
 import {
   loadUnread,
@@ -1994,6 +1995,48 @@ const turnActive = computed<boolean>(() => {
  *  (`turnActive`). */
 const working = computed<boolean>(() => inFlight.value || turnActive.value);
 
+// Live per-turn elapsed timer next to the working moon (F20). The anchor is
+// recorded when the active session's working window opens — the optimistic
+// submit already covers the gap before turn.started round-trips. A mid-turn
+// refresh/reconnect carries no start time in the snapshot, so the anchor is
+// the restore moment and the count restarts from there (accepted trade-off;
+// the settled duration still comes from the server's turn.ended durationMs).
+const turnStartTracker = createTurnStartTracker();
+// A 1-second clock that only ticks while the working moon is up, so the
+// elapsed label keeps counting up (same pattern as useTaskPoller's taskClock).
+const turnClock = ref(0);
+let turnClockTimer: ReturnType<typeof setInterval> | null = null;
+watch(
+  () => [working.value, rawState.activeSessionId] as const,
+  ([isWorking, sid]) => {
+    if (isWorking) {
+      if (sid) turnStartTracker.ensureStarted(sid);
+      if (turnClockTimer === null) {
+        turnClockTimer = setInterval(() => {
+          turnClock.value = (turnClock.value + 1) % Number.MAX_SAFE_INTEGER;
+        }, 1000);
+      }
+    } else {
+      if (sid) turnStartTracker.clear(sid);
+      if (turnClockTimer !== null) {
+        clearInterval(turnClockTimer);
+        turnClockTimer = null;
+      }
+    }
+  },
+  { immediate: true },
+);
+
+/** Whole seconds since the active session's current turn started; null while
+ *  idle. Re-evaluates once per second via `turnClock`. */
+const workingElapsedSeconds = computed<number | null>(() => {
+  void turnClock.value;
+  if (!working.value) return null;
+  const sid = rawState.activeSessionId;
+  if (!sid) return null;
+  return turnStartTracker.elapsedSeconds(sid) ?? 0;
+});
+
 const tasks = computed<TaskItem[]>(() => {
   // Touch the clock so a running task's elapsed time recomputes each tick.
   void taskPoller.taskClock.value;
@@ -2818,6 +2861,7 @@ export function useKimiWebClient() {
     turnActive,
     inFlight,
     working,
+    workingElapsedSeconds,
     isStartingFirstPrompt,
     fastMoon: appearance.fastMoon,
 

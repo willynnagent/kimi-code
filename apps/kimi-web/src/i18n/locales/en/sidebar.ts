@@ -23,6 +23,8 @@ export default {
   export: 'Export session',
   delete: 'Delete',
   removeWorkspace: 'Remove workspace',
+  pinWorkspace: 'Pin workspace',
+  unpinWorkspace: 'Unpin workspace',
   brand: 'Kimi Code',
   signedIn: 'Signed in',
   signOut: 'Sign out',

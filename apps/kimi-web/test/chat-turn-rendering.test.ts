@@ -3,6 +3,7 @@ import type { ChatTurn, ToolCall, TurnBlock } from '../src/types';
 import {
   assistantRenderBlocks,
   formatDuration,
+  formatElapsedSeconds,
   formatTokens,
   rendersToolCard,
   renderBlockKey,
@@ -42,6 +43,27 @@ describe('formatDuration', () => {
     expect(formatDuration(59_999)).toBe('60.0s');
     expect(formatDuration(60_000)).toBe('1m0.0s');
     expect(formatDuration(90_500)).toBe('1m30.5s');
+  });
+});
+
+describe('formatElapsedSeconds', () => {
+  it('counts plain seconds under a minute', () => {
+    expect(formatElapsedSeconds(0)).toBe('0s');
+    expect(formatElapsedSeconds(12)).toBe('12s');
+    expect(formatElapsedSeconds(59)).toBe('59s');
+  });
+
+  it('switches to minutes and hours at the boundaries', () => {
+    expect(formatElapsedSeconds(60)).toBe('1m 0s');
+    expect(formatElapsedSeconds(65)).toBe('1m 5s');
+    expect(formatElapsedSeconds(3599)).toBe('59m 59s');
+    expect(formatElapsedSeconds(3600)).toBe('1h 0m');
+    expect(formatElapsedSeconds(3725)).toBe('1h 2m');
+  });
+
+  it('floors fractions and clamps negatives', () => {
+    expect(formatElapsedSeconds(12.9)).toBe('12s');
+    expect(formatElapsedSeconds(-3)).toBe('0s');
   });
 });
 

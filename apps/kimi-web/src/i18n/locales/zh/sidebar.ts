@@ -23,6 +23,8 @@ export default {
   export: '导出会话',
   delete: '删除',
   removeWorkspace: '移除项目',
+  pinWorkspace: '置顶项目',
+  unpinWorkspace: '取消置顶',
   brand: 'Kimi Code',
   signedIn: '已登录',
   signOut: '退出登录',

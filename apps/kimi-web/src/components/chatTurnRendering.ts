@@ -16,6 +16,17 @@ export function formatDuration(ms: number): string {
   return `${m}m${s}s`;
 }
 
+/** Codex-style live elapsed clock ("12s" → "1m 5s" → "1h 2m") for the working
+ *  moon placeholder — integer seconds, no tenths, so the label doesn't jitter
+ *  while it ticks up. The settled turn keeps using formatDuration above. */
+export function formatElapsedSeconds(totalSeconds: number): string {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ${s % 60}s`;
+  return `${Math.floor(m / 60)}h ${m % 60}m`;
+}
+
 // Ordered render blocks for an assistant turn. messagesToTurns supplies `blocks`
 // (thinking + text + tool cards in call order); fall back to deriving them from
 // the aggregate fields for any turn built without blocks (e.g. unit tests).

@@ -22,6 +22,7 @@ import { openFileAttachment } from '../../lib/openFileAttachment';
 import {
   assistantRenderBlocks,
   formatDuration,
+  formatElapsedSeconds,
   formatTokens,
   renderBlockKey,
   turnBlocks,
@@ -68,6 +69,9 @@ const props = withDefaults(
      * transcript and gates "edit & resend" on the last user message.
      */
     working?: boolean;
+    /** Whole seconds since the current turn started; null while idle. Shown
+     *  next to the working moon as a live "working · Ns" timer. */
+    workingElapsedSeconds?: number | null;
     /** Switches the CSS-only working moon to the faster visual cadence. */
     fastMoon?: boolean;
     /**
@@ -119,6 +123,7 @@ const props = withDefaults(
     approvals: () => [],
     turnActive: false,
     working: false,
+    workingElapsedSeconds: null,
     fastMoon: false,
     compaction: null,
     hasMoreMessages: false,
@@ -678,6 +683,9 @@ function isStreamingRenderBlock(turn: ChatTurn, block: { sourceIndex: number }):
          optimistic submit flag was lost but the main turn is still in flight). -->
     <div v-if="showWorking" class="sending-placeholder">
       <MoonSpinner :fast="fastMoon" />
+      <span v-if="workingElapsedSeconds !== null" class="sending-elapsed">
+        {{ t('conversation.workingElapsed', { elapsed: formatElapsedSeconds(workingElapsedSeconds) }) }}
+      </span>
     </div>
 
     <!-- Inline queue — pending user messages shown after the running turn.
@@ -1122,6 +1130,16 @@ function isStreamingRenderBlock(turn: ChatTurn, block: { sourceIndex: number }):
 .sending-placeholder {
   align-self: flex-start;
   padding: 10px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Live turn elapsed timer next to the working moon */
+.sending-elapsed {
+  font-size: var(--text-base);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Skill activation card (replaces raw <kimi-skill-loaded> XML) */
