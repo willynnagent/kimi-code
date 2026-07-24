@@ -57,6 +57,14 @@ import en_header from './en/header';
 import zh_header from './zh/header';
 import en_sideChat from './en/sideChat';
 import zh_sideChat from './zh/sideChat';
+import en_capabilities from './en/capabilities';
+import zh_capabilities from './zh/capabilities';
+import en_turnChanges from './en/turnChanges';
+import zh_turnChanges from './zh/turnChanges';
+import en_gitPanel from './en/gitPanel';
+import zh_gitPanel from './zh/gitPanel';
+import en_preview from './en/preview';
+import zh_preview from './zh/preview';
 
 export const messages = {
   en: {
@@ -89,6 +97,10 @@ export const messages = {
     settings: en_settings,
     header: en_header,
     sideChat: en_sideChat,
+    capabilities: en_capabilities,
+    turnChanges: en_turnChanges,
+    gitPanel: en_gitPanel,
+    preview: en_preview,
   },
   zh: {
     common: zh_common,
@@ -120,6 +132,10 @@ export const messages = {
     settings: zh_settings,
     header: zh_header,
     sideChat: zh_sideChat,
+    capabilities: zh_capabilities,
+    turnChanges: zh_turnChanges,
+    gitPanel: zh_gitPanel,
+    preview: zh_preview,
   },
 } as const;
 

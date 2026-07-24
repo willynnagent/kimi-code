@@ -73,6 +73,7 @@ import RiFileTextLine from '~icons/ri/file-text-line';
 import RiFlashlightLine from '~icons/ri/flashlight-line';
 import RiFolderAddLine from '~icons/ri/folder-add-line';
 import RiFolderFill from '~icons/ri/folder-fill';
+import RiGitCommitLine from '~icons/ri/git-commit-line';
 import RiGitForkLine from '~icons/ri/git-fork-line';
 import RiGitPullRequestLine from '~icons/ri/git-pull-request-line';
 import RiGlobalLine from '~icons/ri/global-line';
@@ -88,6 +89,7 @@ import RiPauseFill from '~icons/ri/pause-fill';
 import RiPencilLine from '~icons/ri/pencil-line';
 import RiPlayFill from '~icons/ri/play-fill';
 import RiQuestionLine from '~icons/ri/question-line';
+import RiRefreshLine from '~icons/ri/refresh-line';
 import RiSortDesc from '~icons/ri/sort-desc';
 import RiSparklingLine from '~icons/ri/sparkling-line';
 import RiStarFill from '~icons/ri/star-fill';
@@ -148,6 +150,7 @@ import RawFileTextLine from '~icons/ri/file-text-line?raw';
 import RawFlashlightLine from '~icons/ri/flashlight-line?raw';
 import RawFolderAddLine from '~icons/ri/folder-add-line?raw';
 import RawFolderFill from '~icons/ri/folder-fill?raw';
+import RawGitCommitLine from '~icons/ri/git-commit-line?raw';
 import RawGitForkLine from '~icons/ri/git-fork-line?raw';
 import RawGitPullRequestLine from '~icons/ri/git-pull-request-line?raw';
 import RawGlobalLine from '~icons/ri/global-line?raw';
@@ -163,6 +166,7 @@ import RawPauseFill from '~icons/ri/pause-fill?raw';
 import RawPencilLine from '~icons/ri/pencil-line?raw';
 import RawPlayFill from '~icons/ri/play-fill?raw';
 import RawQuestionLine from '~icons/ri/question-line?raw';
+import RawRefreshLine from '~icons/ri/refresh-line?raw';
 import RawSortDesc from '~icons/ri/sort-desc?raw';
 import RawSparklingLine from '~icons/ri/sparkling-line?raw';
 import RawStarFill from '~icons/ri/star-fill?raw';
@@ -232,6 +236,7 @@ export type IconName =
   | 'globe'
   | 'check-list'
   | 'bolt'
+  | 'git-commit'
   | 'git-fork'
   | 'git-pull-request'
   | 'message'
@@ -241,6 +246,7 @@ export type IconName =
   | 'help-circle'
   | 'alert-triangle'
   | 'clock'
+  | 'refresh'
   | 'sparkles'
   | 'target'
   | 'pause'
@@ -321,6 +327,7 @@ export const ICONS: Record<IconName, IconEntry> = {
   globe: entry(RiGlobalLine, RawGlobalLine),
   'check-list': entry(RiListCheck, RawListCheck),
   bolt: entry(RiFlashlightLine, RawFlashlightLine),
+  'git-commit': entry(RiGitCommitLine, RawGitCommitLine),
   'git-fork': entry(RiGitForkLine, RawGitForkLine),
   'git-pull-request': entry(RiGitPullRequestLine, RawGitPullRequestLine),
   message: entry(RiMessageLine, RawMessageLine),
@@ -330,6 +337,7 @@ export const ICONS: Record<IconName, IconEntry> = {
   'help-circle': entry(RiQuestionLine, RawQuestionLine),
   'alert-triangle': entry(RiAlertLine, RawAlertLine),
   clock: entry(RiTimeLine, RawTimeLine),
+  refresh: entry(RiRefreshLine, RawRefreshLine),
   sparkles: entry(RiSparklingLine, RawSparklingLine),
   target: entry(RiTargetLine, RawTargetLine),
   pause: entry(RiPauseFill, RawPauseFill),
@@ -427,6 +435,7 @@ export const ICON_GROUPS: ReadonlyArray<readonly [string, readonly IconName[]]> 
       'globe',
       'check-list',
       'bolt',
+      'git-commit',
       'git-fork',
       'git-pull-request',
       'archive',
@@ -444,6 +453,7 @@ export const ICON_GROUPS: ReadonlyArray<readonly [string, readonly IconName[]]> 
       'help-circle',
       'alert-triangle',
       'clock',
+      'refresh',
       'sparkles',
       'pause',
       'play',

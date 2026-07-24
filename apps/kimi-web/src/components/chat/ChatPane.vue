@@ -19,6 +19,16 @@ import Tooltip from '../ui/Tooltip.vue';
 import { useConfirmDialog } from '../../composables/useConfirmDialog';
 import { copyTextToClipboard } from '../../lib/clipboard';
 import { openFileAttachment } from '../../lib/openFileAttachment';
+// F9(docs/09):turn 尾部"改动 N 个文件"入口;fork 组件,归因状态在 codex store。
+import TurnChangesFooter from '../codex/TurnChangesFooter.vue';
+import { getTurnChangesStore } from '../codex/useTurnChanges';
+// F13(docs/11):localhost 预览入口;检测纯函数在 codex/usePreviewLink。
+import {
+  detectLocalhostUrl,
+  previewUrlLabel,
+  resolvePreviewApi,
+  type DesktopPreviewBridge,
+} from '../codex/usePreviewLink';
 import {
   assistantRenderBlocks,
   formatDuration,
@@ -56,6 +66,11 @@ const props = withDefaults(
   defineProps<{
     turns: ChatTurn[];
     approvals?: { approvalId: string; block: ApprovalBlock; agentName?: string }[];
+    /**
+     * F9(docs/09):当前会话 id,用于 turn 尾部"改动 N 个文件"入口的归因与
+     * diff 取数。SideChatPanel 等场景不传,入口自动隐藏。
+     */
+    sessionId?: string;
     /**
      * True while the MAIN agent has a turn in flight (not merely "session
      * busy" — background subagents and BTW side chats don't set this). Marks
@@ -134,6 +149,63 @@ const props = withDefaults(
     queued: () => [],
   },
 );
+
+// F9(docs/09):按 turn 改动文件。会话切换时建立 git 基线;observeTurns
+// 跟踪 turns 数组(初始化计数 / prepend 移位 / pending 归属);main agent
+// turn 结束(turnActive 下降沿)时对工作区跑一次 git_status,把本轮新增
+// 脏文件并入该 turn 的"其他改动"。SideChatPanel 不传 sessionId,watcher 不触发。
+// 注意创建顺序:turns watcher 必须先于 turnActive watcher——同一次 flush 里
+// Vue 按创建顺序执行,下降沿处理需要 observeTurns 先完成计数对账。
+const turnChangesStore = getTurnChangesStore();
+watch(
+  () => props.sessionId,
+  (sid) => {
+    if (sid !== undefined) turnChangesStore.noteSession(sid);
+  },
+  { immediate: true },
+);
+watch(
+  () => props.turns,
+  (turns) => {
+    if (props.sessionId !== undefined) {
+      turnChangesStore.observeTurns(props.sessionId, turns, props.turnActive);
+    }
+  },
+  { immediate: true },
+);
+watch(
+  () => props.turnActive,
+  (active, prev) => {
+    if (prev === true && !active && props.sessionId !== undefined) {
+      turnChangesStore.noteTurnEnd(props.sessionId, props.turns);
+    }
+  },
+);
+
+// F13(docs/11):localhost 预览入口。仅在桌面壳(window.desktop.preview.open
+// 存在)渲染;从最新 assistant run 的合并文本检测 localhost URL(取最近一条,
+// 代码块内不算)。chip 挂在该 run 的 footer 上——流式期间 footer 不渲染,
+// chip 随之隐藏,地址流式写完后才出现。
+const previewApi = resolvePreviewApi(
+  typeof window === 'undefined'
+    ? undefined
+    : (window as unknown as { desktop?: DesktopPreviewBridge }).desktop,
+);
+const previewLink = computed<{ url: string; label: string; turnIndex: number } | null>(() => {
+  if (!previewApi) return null;
+  for (let i = props.turns.length - 1; i >= 0; i -= 1) {
+    if (props.turns[i]?.role !== 'assistant') continue;
+    const url = detectLocalhostUrl(assistantRunFinalText(i));
+    return url === null ? null : { url, label: previewUrlLabel(url), turnIndex: i };
+  }
+  return null;
+});
+function openPreviewLink(): void {
+  const link = previewLink.value;
+  if (!link || previewApi?.open === undefined) return;
+  // 壳侧拒绝(invalid_url)或窗口失败都不打断会话,静默即可
+  void previewApi.open(link.url).catch(() => {/* ignore */});
+}
 
 // Top sentinel for lazy-loading older messages. Visible when there are older
 // messages or while a page is loading; the IntersectionObserver fires as soon
@@ -659,6 +731,18 @@ function isStreamingRenderBlock(turn: ChatTurn, block: { sourceIndex: number }):
           <Tooltip :text="`${turn.durationMs} ms`">
             <span v-if="turn.durationMs !== undefined" class="a-duration">{{ formatDuration(turn.durationMs) }}</span>
           </Tooltip>
+          <TurnChangesFooter v-if="sessionId !== undefined" :session-id="sessionId" :turn="turn" />
+          <!-- F13:localhost 预览入口;仅在最新 assistant run 的 footer 出现 -->
+          <button
+            v-if="previewLink !== null && previewLink.turnIndex === ti"
+            type="button"
+            class="a-preview-chip"
+            :title="t('preview.openTooltip', { url: previewLink.url })"
+            @click="openPreviewLink"
+          >
+            <Icon name="external-link" size="sm" />
+            <span>{{ t('preview.chip', { target: previewLink.label }) }}</span>
+          </button>
           <button
             v-if="assistantRunFinalText(ti).trim().length > 0"
             class="a-cpbtn"
@@ -993,6 +1077,8 @@ function isStreamingRenderBlock(turn: ChatTurn, block: { sourceIndex: number }):
   justify-content: flex-start;
   align-items: center;
   gap: 8px;
+  /* F9:TurnChangesFooter 的展开面板(flex-basis:100%)换行落到 footer 下方 */
+  flex-wrap: wrap;
   height: auto;
   margin-top: var(--chat-block-gap);
   overflow: visible;
@@ -1003,6 +1089,33 @@ function isStreamingRenderBlock(turn: ChatTurn, block: { sourceIndex: number }):
   font-size: var(--text-base);
   color: var(--muted);
   line-height: 1;
+}
+
+/* F13:localhost 预览入口 chip,与 footer 里其他动作同排 */
+.a-preview-chip {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: none;
+  font: inherit;
+  font-size: var(--text-base);
+  line-height: 1.4;
+  color: var(--color-accent);
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s, background-color 0.12s;
+}
+.a-preview-chip:hover {
+  color: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+  background: var(--hover);
+}
+.a-preview-chip svg {
+  display: block;
+  flex: none;
 }
 
 /* Copy button — icon-only, shares the undo button's muted→hover style so the

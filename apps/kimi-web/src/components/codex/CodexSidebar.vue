@@ -31,6 +31,12 @@ import Tooltip from '../ui/Tooltip.vue';
 import Menu from '../ui/Menu.vue';
 import MenuItem from '../ui/MenuItem.vue';
 import CodexUsageBadge from './CodexUsageBadge.vue';
+import CapabilitiesPanel from './CapabilitiesPanel.vue';
+import GitPanel from './GitPanel.vue';
+import {
+  fetchGitChangeCounts,
+  resolveGitBridge,
+} from './useGitPanel';
 
 const { t, locale } = useI18n();
 const client = useKimiWebClient();
@@ -76,6 +82,43 @@ const emit = defineEmits<{
   openSettings: [];
   collapse: [];
 }>();
+
+// ---------------------------------------------------------------------------
+// F12:Skills / MCP 管理中心入口(footer "能力"按钮 → 模态面板)。
+// ---------------------------------------------------------------------------
+const showCapabilities = ref(false);
+
+// ---------------------------------------------------------------------------
+// F11:Git 面板入口(项目行 hover 的 Git 按钮 → 工作区级模态面板,docs/10)。
+// 桥不存在(浏览器环境)→ 按钮隐藏。计数点:workspaceGroups 变化时批量拉一次
+// status(非 git 仓库/失败项静默跳过),面板关闭后重拉。不做 watcher(KISS)。
+// ---------------------------------------------------------------------------
+const gitBridge = resolveGitBridge(desktopBridge);
+const gitCounts = ref<Record<string, number>>({});
+const gitPanelWs = ref<{ id: string; name: string; root: string } | null>(null);
+
+function refreshGitCounts(): void {
+  if (!gitBridge) return;
+  const roots = client.workspaceGroups.value.map((g) => g.workspace.root);
+  void fetchGitChangeCounts(gitBridge, roots).then((counts) => {
+    gitCounts.value = counts;
+  });
+}
+
+watch(
+  () => client.workspaceGroups.value.map((g) => g.workspace.id).join(','),
+  () => refreshGitCounts(),
+  { immediate: true },
+);
+
+function openGitPanel(g: { workspace: { id: string; name: string; root: string } }): void {
+  gitPanelWs.value = { ...g.workspace };
+}
+
+function closeGitPanel(): void {
+  gitPanelWs.value = null;
+  refreshGitCounts();
+}
 
 // ---------------------------------------------------------------------------
 // Inline session filter. A non-empty query swaps the project tree for a flat
@@ -562,6 +605,23 @@ function togglePinFromMenu(): void {
                     {{ workspaceAttention(g.workspace.id) }}
                   </Badge>
                 </Tooltip>
+                <!-- F11:变更计数点(有变更时常显)+ Git 面板入口(hover 显示) -->
+                <Badge
+                  v-if="gitBridge && (gitCounts[g.workspace.root] ?? 0) > 0"
+                  variant="neutral"
+                  size="sm"
+                >
+                  {{ gitCounts[g.workspace.root] }}
+                </Badge>
+                <IconButton
+                  v-if="gitBridge"
+                  class="codex-proj-git"
+                  size="sm"
+                  :label="t('gitPanel.entry')"
+                  @click.stop="openGitPanel(g)"
+                >
+                  <Icon name="git-commit" />
+                </IconButton>
                 <IconButton
                   class="codex-proj-add"
                   size="sm"
@@ -667,15 +727,31 @@ function togglePinFromMenu(): void {
         </template>
       </div>
 
-      <!-- Footer: settings entry pinned under the list; usage badge (desktop
-           shell only — renders nothing in the browser) sits at the right. -->
+      <!-- Footer: settings entry pinned under the list; F12 capabilities entry
+           and usage badge (desktop shell only — renders nothing in the browser)
+           sit at the right. -->
       <div class="codex-footer">
         <button class="codex-btn-settings" type="button" @click.stop="emit('openSettings')">
           <Icon name="settings" />
           <span>{{ t('settings.title') }}</span>
         </button>
+        <button
+          class="codex-btn-settings codex-btn-cap"
+          type="button"
+          @click.stop="showCapabilities = true"
+        >
+          <Icon name="sparkles" />
+          <span>{{ t('capabilities.entry') }}</span>
+        </button>
         <CodexUsageBadge />
       </div>
+      <CapabilitiesPanel v-if="showCapabilities" @close="showCapabilities = false" />
+      <GitPanel
+        v-if="gitPanelWs && gitBridge"
+        :workspace="gitPanelWs"
+        :bridge="gitBridge"
+        @close="closeGitPanel"
+      />
     </div>
 
     <!-- Session kebab dropdown — teleported to <body> and position:fixed so the
@@ -993,6 +1069,19 @@ function togglePinFromMenu(): void {
 }
 .codex-proj-add:hover { color: var(--dim); }
 
+/* F11:Git 面板入口 — 与 "+ New Session" 同款 hover 显示。 */
+.codex-proj-git {
+  flex: none;
+  color: var(--faint);
+  opacity: 0;
+  transition: opacity var(--duration-base) var(--ease-out);
+}
+.codex-proj:hover .codex-proj-git,
+.codex-proj:focus-within .codex-proj-git {
+  opacity: 1;
+}
+.codex-proj-git:hover { color: var(--dim); }
+
 /* Session row. */
 .codex-se {
   display: flex;
@@ -1154,6 +1243,8 @@ function togglePinFromMenu(): void {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* F12:能力入口——复用设置按钮样式,但不拉伸(与右侧用量徽章并排)。 */
+.codex-btn-cap { flex: none; }
 
 /* Kebab menu — fixed positioning; surface/items come from Menu/MenuItem. */
 .codex-menu {

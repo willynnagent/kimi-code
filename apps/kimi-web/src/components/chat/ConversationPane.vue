@@ -1416,6 +1416,7 @@ defineExpose({ loadComposerForEdit, focusComposer });
               :key="fileReloadKey ?? 'no-session'"
               :turns="turns"
               :approvals="approvals"
+              :session-id="sessionId"
               :turn-active="turnActive"
               :working="working"
               :working-elapsed-seconds="workingElapsedSeconds ?? null"
