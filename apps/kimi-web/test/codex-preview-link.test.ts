@@ -1,14 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   detectLocalhostUrl,
+  openPreviewInBrowser,
   previewUrlLabel,
-  resolvePreviewApi,
 } from '../src/components/codex/usePreviewLink';
 
 // F13(docs/11):会话文本中 localhost URL 检测——chip"预览 localhost:3000"的
 // 数据源。规则:仅 http(s) + localhost/127.0.0.1/[::1];多条取最近;围栏
-// 代码块内不检测(行内 code 仍检测);壳侧 IPC 另有同规则复核。
+// 代码块内不检测(行内 code 仍检测)。打开动作 = window.open 新标签,壳侧
+// setWindowOpenHandler 白名单转交系统浏览器,浏览器版退化为新标签页。
 
 describe('detectLocalhostUrl', () => {
   it('检测 localhost / 127.0.0.1 / [::1](含端口与路径)', () => {
@@ -82,12 +83,10 @@ describe('previewUrlLabel', () => {
   });
 });
 
-describe('resolvePreviewApi(渲染门槛)', () => {
-  it('preview.open 存在时返回 API,否则 undefined(浏览器环境隐藏入口)', () => {
-    const open = async () => ({ ok: true });
-    expect(resolvePreviewApi({ preview: { open } })).toEqual({ open });
-    expect(resolvePreviewApi({ preview: {} })).toBeUndefined();
-    expect(resolvePreviewApi({})).toBeUndefined();
-    expect(resolvePreviewApi(undefined)).toBeUndefined();
+describe('openPreviewInBrowser', () => {
+  it('以 _blank + noopener 调用 window.open(壳侧 setWindowOpenHandler 交系统浏览器)', () => {
+    const open = vi.fn();
+    openPreviewInBrowser('http://localhost:3000/app', { open } as unknown as Window);
+    expect(open).toHaveBeenCalledWith('http://localhost:3000/app', '_blank', 'noopener');
   });
 });

@@ -22,13 +22,8 @@ import { openFileAttachment } from '../../lib/openFileAttachment';
 // F9(docs/09):turn 尾部"改动 N 个文件"入口;fork 组件,归因状态在 codex store。
 import TurnChangesFooter from '../codex/TurnChangesFooter.vue';
 import { getTurnChangesStore } from '../codex/useTurnChanges';
-// F13(docs/11):localhost 预览入口;检测纯函数在 codex/usePreviewLink。
-import {
-  detectLocalhostUrl,
-  previewUrlLabel,
-  resolvePreviewApi,
-  type DesktopPreviewBridge,
-} from '../codex/usePreviewLink';
+// F13(docs/11):localhost 预览入口;检测与打开在 codex/usePreviewLink。
+import { detectLocalhostUrl, openPreviewInBrowser, previewUrlLabel } from '../codex/usePreviewLink';
 import {
   assistantRenderBlocks,
   formatDuration,
@@ -182,17 +177,12 @@ watch(
   },
 );
 
-// F13(docs/11):localhost 预览入口。仅在桌面壳(window.desktop.preview.open
-// 存在)渲染;从最新 assistant run 的合并文本检测 localhost URL(取最近一条,
-// 代码块内不算)。chip 挂在该 run 的 footer 上——流式期间 footer 不渲染,
-// chip 随之隐藏,地址流式写完后才出现。
-const previewApi = resolvePreviewApi(
-  typeof window === 'undefined'
-    ? undefined
-    : (window as unknown as { desktop?: DesktopPreviewBridge }).desktop,
-);
+// F13(docs/11):localhost 预览入口。检测到 localhost URL 即显示(不依赖壳
+// IPC);从最新 assistant run 的合并文本检测(取最近一条,代码块内不算)。
+// chip 挂在该 run 的 footer 上——流式期间 footer 不渲染,chip 随之隐藏,
+// 地址流式写完后才出现。点击经 window.open 交系统浏览器(壳侧
+// setWindowOpenHandler 白名单)或浏览器新标签页。
 const previewLink = computed<{ url: string; label: string; turnIndex: number } | null>(() => {
-  if (!previewApi) return null;
   for (let i = props.turns.length - 1; i >= 0; i -= 1) {
     if (props.turns[i]?.role !== 'assistant') continue;
     const url = detectLocalhostUrl(assistantRunFinalText(i));
@@ -202,9 +192,8 @@ const previewLink = computed<{ url: string; label: string; turnIndex: number } |
 });
 function openPreviewLink(): void {
   const link = previewLink.value;
-  if (!link || previewApi?.open === undefined) return;
-  // 壳侧拒绝(invalid_url)或窗口失败都不打断会话,静默即可
-  void previewApi.open(link.url).catch(() => {/* ignore */});
+  if (!link) return;
+  openPreviewInBrowser(link.url);
 }
 
 // Top sentinel for lazy-loading older messages. Visible when there are older
