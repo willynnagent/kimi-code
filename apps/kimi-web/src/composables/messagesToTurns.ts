@@ -921,6 +921,19 @@ export function messagesToTurns(
     } else if (pendingGroup !== null && pendingGroup.promptId === undefined && pid !== undefined) {
       pendingGroup.promptId = pid;
     }
+    if (
+      pendingGroup !== null &&
+      pendingGroup.durationMs === undefined &&
+      msg.durationMs !== undefined
+    ) {
+      // F20: the projector writes turn.ended durationMs onto the LAST assistant
+      // message of a turn; when a turn spans several assistant messages (a tool
+      // call between text steps) they merge into one group seeded from the FIRST
+      // message. Absorb the settled duration from a later message so the merged
+      // turn still shows the footer duration. First message wins when both
+      // carry a value (the turn-level duration is the same either way).
+      pendingGroup.durationMs = msg.durationMs;
+    }
 
     const group = pendingGroup;
     if (group === null) continue;

@@ -880,3 +880,76 @@ describe('isPlayableMediaUrl', () => {
     expect(isPlayableMediaUrl('')).toBe(false);
   });
 });
+
+// F20: the projector writes turn.ended durationMs onto the LAST assistant
+// message of a multi-message turn (a tool call between text steps), while the
+// merged rendering group seeds durationMs from its FIRST message. The merger
+// must absorb the duration from a later message so the footer still renders.
+describe('messagesToTurns multi-message turn duration (F20)', () => {
+  it('absorbs durationMs from a later assistant message of the same turn', () => {
+    const turns = messagesToTurns(
+      [
+        message('u1', 'user', [{ type: 'text', text: 'write a file' }]),
+        message('a1', 'assistant', [{ type: 'thinking', thinking: 'plan' }], {
+          promptId: 'pr_1',
+        }),
+        message(
+          'a2',
+          'assistant',
+          [{ type: 'text', text: 'done' }, { type: 'toolUse', toolCallId: 't1', toolName: 'Write', input: {} }],
+          { promptId: 'pr_1', durationMs: 5098 },
+        ),
+        message('t1', 'tool', [{ type: 'toolResult', toolCallId: 't1', output: 'ok' }], {
+          promptId: 'pr_1',
+        }),
+      ],
+      [],
+      undefined,
+      false,
+    );
+
+    const turn = turns.find((t) => t.role === 'assistant');
+    expect(turn).toBeDefined();
+    expect(turn!.durationMs).toBe(5098);
+  });
+
+  it('keeps the first message duration when both carry one', () => {
+    const turns = messagesToTurns(
+      [
+        message('a1', 'assistant', [{ type: 'text', text: 'first' }], {
+          promptId: 'pr_1',
+          durationMs: 1111,
+        }),
+        message('a2', 'assistant', [{ type: 'text', text: 'second' }], {
+          promptId: 'pr_1',
+          durationMs: 2222,
+        }),
+      ],
+      [],
+      undefined,
+      false,
+    );
+
+    const turn = turns.find((t) => t.role === 'assistant');
+    expect(turn!.durationMs).toBe(1111);
+  });
+
+  it('keeps pure-text turns unchanged — the single message carries the duration', () => {
+    const turns = messagesToTurns(
+      [
+        message('u1', 'user', [{ type: 'text', text: 'hi' }]),
+        message('a1', 'assistant', [{ type: 'text', text: 'answer' }], {
+          promptId: 'pr_1',
+          durationMs: 123,
+        }),
+      ],
+      [],
+      undefined,
+      false,
+    );
+
+    const turn = turns.find((t) => t.role === 'assistant');
+    expect(turn).toBeDefined();
+    expect(turn!.durationMs).toBe(123);
+  });
+});

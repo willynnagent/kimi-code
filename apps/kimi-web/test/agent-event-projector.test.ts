@@ -729,3 +729,110 @@ describe('background subagent termination (F21)', () => {
     expect(created[0]).toMatchObject({ task: { id: 'agent-1', status: 'running' } });
   });
 });
+
+// F20: a turn that closes on a tool result leaves currentAssistantMsgId
+// cleared (tool.result resets it), so turn.ended must fall back to the
+// turnId → promptId → last assistant bubble binding to land durationMs.
+describe('turn.ended duration binding for tool-closing turns (F20)', () => {
+  function runToolClosingTurn(
+    projector: ReturnType<typeof createAgentProjector>,
+    durationMs: number,
+  ): { ended: ReturnType<typeof projector.project>; toolMsgId: string | undefined } {
+    const sid = 's1';
+    projector.project(
+      'turn.started',
+      { type: 'turn.started', turnId: 1, agentId: 'main', sessionId: sid },
+      sid,
+    );
+    projector.project(
+      'turn.step.started',
+      { type: 'turn.step.started', turnId: 1, step: 1, agentId: 'main', sessionId: sid },
+      sid,
+    );
+    projector.project(
+      'assistant.delta',
+      { type: 'assistant.delta', turnId: 1, delta: 'writing file', agentId: 'main', sessionId: sid },
+      sid,
+      { offset: 0 },
+    );
+    const tool = projector.project(
+      'tool.call.started',
+      { type: 'tool.call.started', turnId: 1, toolCallId: 'tc1', name: 'Bash', args: { command: 'echo hi > f.txt' }, agentId: 'main', sessionId: sid },
+      sid,
+    );
+    const toolMsgId = (tool.find((e) => e.type === 'messageUpdated') as { messageId?: string } | undefined)?.messageId;
+    // The tool result closes the step and resets the assistant-message pointer.
+    projector.project(
+      'tool.result',
+      { type: 'tool.result', turnId: 1, toolCallId: 'tc1', output: 'ok', agentId: 'main', sessionId: sid },
+      sid,
+    );
+    const ended = projector.project(
+      'turn.ended',
+      { type: 'turn.ended', turnId: 1, reason: 'completed', durationMs, agentId: 'main', sessionId: sid },
+      sid,
+    );
+    return { ended, toolMsgId };
+  }
+
+  it('writes durationMs onto the last assistant bubble of a tool-closing turn', () => {
+    const projector = createAgentProjector();
+    const { ended, toolMsgId } = runToolClosingTurn(projector, 5000);
+
+    expect(toolMsgId).toBeDefined();
+    expect(ended).toContainEqual(
+      expect.objectContaining({
+        type: 'messageUpdated',
+        messageId: toolMsgId,
+        status: 'completed',
+        durationMs: 5000,
+      }),
+    );
+  });
+
+  it('keeps the pointer path for pure-text turns — same message, same duration', () => {
+    const projector = createAgentProjector();
+    const sid = 's1';
+    projector.project('turn.started', { type: 'turn.started', turnId: 1, agentId: 'main', sessionId: sid }, sid);
+    projector.project('turn.step.started', { type: 'turn.step.started', turnId: 1, step: 1, agentId: 'main', sessionId: sid }, sid);
+    const deltas = projector.project(
+      'assistant.delta',
+      { type: 'assistant.delta', turnId: 1, delta: 'plain answer', agentId: 'main', sessionId: sid },
+      sid,
+      { offset: 0 },
+    );
+    const msgId = (deltas.find((e) => e.type === 'assistantDelta') as { messageId?: string } | undefined)?.messageId;
+
+    const ended = projector.project(
+      'turn.ended',
+      { type: 'turn.ended', turnId: 1, reason: 'completed', durationMs: 123, agentId: 'main', sessionId: sid },
+      sid,
+    );
+
+    expect(msgId).toBeDefined();
+    expect(ended).toContainEqual(
+      expect.objectContaining({
+        type: 'messageUpdated',
+        messageId: msgId,
+        status: 'completed',
+        durationMs: 123,
+      }),
+    );
+  });
+
+  it('is a silent no-op when no assistant bubble can be bound to the turn', () => {
+    const projector = createAgentProjector();
+
+    // Unknown turnId: no promptId binding, no pointer — nothing to update, but
+    // the turn lifecycle events must still flow.
+    const events = projector.project(
+      'turn.ended',
+      { type: 'turn.ended', turnId: 99, reason: 'completed', durationMs: 123, agentId: 'main' },
+      's1',
+    );
+
+    expect(events.filter((e) => e.type === 'messageUpdated')).toEqual([]);
+    expect(events).toContainEqual(expect.objectContaining({ type: 'turnActiveChanged', active: false }));
+    expect(events).toContainEqual(expect.objectContaining({ type: 'sessionUsageUpdated' }));
+  });
+});

@@ -476,6 +476,24 @@ function getMsgById(state: SessionState, messageId: string): AppMessage | undefi
   return state.messages.find((m) => m.id === messageId);
 }
 
+/**
+ * Fallback turn.ended binding: when the current-message pointer was cleared by
+ * a trailing tool.completed, resolve the turn's final assistant bubble via
+ * turnId → promptId → the LAST assistant message carrying that promptId.
+ * Returns undefined when the turn has no known promptId or no matching bubble
+ * (e.g. a turn that produced only tool messages) — callers then skip the
+ * duration write, matching the pre-existing behaviour.
+ */
+function lastTurnAssistantMsgId(state: SessionState, turnId: number): string | undefined {
+  const promptId = state.turnPromptId.get(turnId);
+  if (!promptId) return undefined;
+  for (let i = state.messages.length - 1; i >= 0; i--) {
+    const msg = state.messages[i];
+    if (msg !== undefined && msg.role === 'assistant' && msg.promptId === promptId) return msg.id;
+  }
+  return undefined;
+}
+
 // ---------------------------------------------------------------------------
 // Usage snapshot builder
 // ---------------------------------------------------------------------------
@@ -988,6 +1006,14 @@ export function createAgentProjector(): AgentProjector {
         const msgId = s.currentAssistantMsgId;
         const reason: string = p?.reason ?? 'completed';
         const durationMs = numberField(p ?? {}, 'durationMs');
+        // The pointer is undefined when the turn closed on a tool call
+        // (tool.completed resets it) — fall back to the turnId → promptId →
+        // last assistant bubble binding so the duration still lands on the
+        // transcript. Pure-text turns keep the pointer path unchanged.
+        const turnId: number | undefined = numberField(p ?? {}, 'turnId');
+        const turnMsgId =
+          msgId ??
+          (turnId !== undefined ? lastTurnAssistantMsgId(s, turnId) : undefined);
 
         // Main-conversation liveness: the prompt this turn served is done.
         // This — not the session-busy status — is what ends the working moon.
@@ -999,14 +1025,14 @@ export function createAgentProjector(): AgentProjector {
         // still running, where no work_changed(busy:false) fallback exists).
         out.push({ type: 'turnActiveChanged', sessionId, active: false, reason: p?.reason });
 
-        if (msgId) {
-          finishAssistantMessage(s, msgId);
-          const msg = getMsgById(s, msgId);
+        if (turnMsgId) {
+          finishAssistantMessage(s, turnMsgId);
+          const msg = getMsgById(s, turnMsgId);
           if (msg) {
             out.push({
               type: 'messageUpdated',
               sessionId,
-              messageId: msgId,
+              messageId: turnMsgId,
               content: msg.content.map((c) => ({ ...c })),
               status: reason === 'failed' || reason === 'blocked' ? 'error' : 'completed',
               durationMs,
