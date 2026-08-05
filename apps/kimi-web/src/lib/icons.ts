@@ -88,7 +88,9 @@ import RiMessageLine from '~icons/ri/message-line';
 import RiPauseFill from '~icons/ri/pause-fill';
 import RiPencilLine from '~icons/ri/pencil-line';
 import RiPlayFill from '~icons/ri/play-fill';
+import RiPuzzleLine from '~icons/ri/puzzle-line';
 import RiQuestionLine from '~icons/ri/question-line';
+import RiServerLine from '~icons/ri/server-line';
 import RiRefreshLine from '~icons/ri/refresh-line';
 import RiSortDesc from '~icons/ri/sort-desc';
 import RiSparklingLine from '~icons/ri/sparkling-line';
@@ -165,7 +167,9 @@ import RawMessageLine from '~icons/ri/message-line?raw';
 import RawPauseFill from '~icons/ri/pause-fill?raw';
 import RawPencilLine from '~icons/ri/pencil-line?raw';
 import RawPlayFill from '~icons/ri/play-fill?raw';
+import RawPuzzleLine from '~icons/ri/puzzle-line?raw';
 import RawQuestionLine from '~icons/ri/question-line?raw';
+import RawServerLine from '~icons/ri/server-line?raw';
 import RawRefreshLine from '~icons/ri/refresh-line?raw';
 import RawSortDesc from '~icons/ri/sort-desc?raw';
 import RawSparklingLine from '~icons/ri/sparkling-line?raw';
@@ -251,6 +255,8 @@ export type IconName =
   | 'target'
   | 'pause'
   | 'play'
+  | 'puzzle'
+  | 'server'
   | 'stop'
   | 'star'
   | 'star-outline'
@@ -342,6 +348,8 @@ export const ICONS: Record<IconName, IconEntry> = {
   target: entry(RiTargetLine, RawTargetLine),
   pause: entry(RiPauseFill, RawPauseFill),
   play: entry(RiPlayFill, RawPlayFill),
+  puzzle: entry(RiPuzzleLine, RawPuzzleLine),
+  server: entry(RiServerLine, RawServerLine),
   stop: entry(RiStopFill, RawStopFill),
   star: entry(RiStarFill, RawStarFill),
   'star-outline': entry(RiStarLine, RawStarLine),
