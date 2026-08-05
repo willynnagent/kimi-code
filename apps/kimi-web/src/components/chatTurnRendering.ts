@@ -8,12 +8,19 @@ import type { ChatTurn, TurnBlock } from '../types';
 // existing ChatPane import keeps working.
 export { formatTokens } from '../lib/formatTokens';
 
+/**
+ * Codex-style settled turn duration ("0.9s" → "9s" → "1m 30s" → "1h 54m 34s").
+ * Sub-second keeps one decimal; from 1s up the display is whole seconds with
+ * compact unit suffixes (h/m/s), matching Codex's "Processed 1h 54m 34s".
+ */
 export function formatDuration(ms: number): string {
-  if (ms < 1000) return `${ms}ms`;
-  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
-  const m = Math.floor(ms / 60_000);
-  const s = ((ms % 60_000) / 1000).toFixed(1);
-  return `${m}m${s}s`;
+  if (ms < 1000) return `${(ms / 1000).toFixed(1)}s`;
+  const totalSec = Math.floor(ms / 1000);
+  if (totalSec < 60) return `${totalSec}s`;
+  const m = Math.floor(totalSec / 60);
+  if (m < 60) return `${m}m ${totalSec % 60}s`;
+  const h = Math.floor(m / 60);
+  return `${h}h ${m % 60}m ${totalSec % 60}s`;
 }
 
 /** Codex-style live elapsed clock ("12s" → "1m 5s" → "1h 2m") for the working

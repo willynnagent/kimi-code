@@ -37,12 +37,27 @@ describe('formatTokens', () => {
 });
 
 describe('formatDuration', () => {
-  it('switches units at the 1s and 1m boundaries', () => {
-    expect(formatDuration(999)).toBe('999ms');
-    expect(formatDuration(1000)).toBe('1.0s');
-    expect(formatDuration(59_999)).toBe('60.0s');
-    expect(formatDuration(60_000)).toBe('1m0.0s');
-    expect(formatDuration(90_500)).toBe('1m30.5s');
+  it('sub-second keeps one decimal', () => {
+    expect(formatDuration(900)).toBe('0.9s');
+    expect(formatDuration(999)).toBe('1.0s');
+  });
+
+  it('whole seconds under a minute', () => {
+    expect(formatDuration(1000)).toBe('1s');
+    expect(formatDuration(59_000)).toBe('59s');
+    expect(formatDuration(59_999)).toBe('59s');
+  });
+
+  it('minutes as "Ym Zs" from 1m up', () => {
+    expect(formatDuration(60_000)).toBe('1m 0s');
+    expect(formatDuration(90_500)).toBe('1m 30s');
+    expect(formatDuration(3_599_000)).toBe('59m 59s');
+  });
+
+  it('hours as "Xh Ym Zs" from 1h up', () => {
+    expect(formatDuration(3_600_000)).toBe('1h 0m 0s');
+    expect(formatDuration(6_874_000)).toBe('1h 54m 34s');
+    expect(formatDuration(3_723_000)).toBe('1h 2m 3s');
   });
 });
 

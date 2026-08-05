@@ -79,6 +79,7 @@ import { createInitialState, reduceAppEvent, type CompactionStatus, type KimiCli
 import { isPlaceholderSessionUsage, toAppEvent } from '../api/daemon/mappers';
 
 import { messagesToTurns } from './messagesToTurns';
+import { applyHistoricalDurations, fetchHistoricalDurations } from './useTurnDurations';
 import { latestTodos } from './latestTodos';
 import { buildSwarmGroups, countSwarmMembers, swarmMembersByToolCall } from './swarmGroups';
 import type { SwarmGroup, SwarmMember } from './swarmGroups';
@@ -1968,14 +1969,53 @@ const turns = computed<ChatTurn[]>(() => {
   const hiddenIds = new Set(rawState.sideChatUserMessageIdsBySession[sid] ?? []);
   const messages = (rawState.messagesBySession[sid] ?? []).filter((m) => !hiddenIds.has(m.id));
   const approvals = rawState.approvalsBySession[sid] ?? [];
-  return messagesToTurns(
+  const base = messagesToTurns(
     messages,
     approvals,
     (fileId) => getKimiWebApi().getFileUrl(fileId),
     turnActive.value,
     rawState.planReviewByToolCallId,
   );
+  // F20:历史 turn 耗时(经壳 IPC 只读 wire.jsonl turn.ended;live 时长优先不覆盖)
+  return applyHistoricalDurations(base, historicalDurationsBySession.value[sid]);
 });
+
+// F20:历史 turn 耗时的每会话映射(从新数数组);undefined = 尚未拉取,null = 无数据。
+const historicalDurationsBySession = ref<Record<string, (number | undefined)[] | null>>({});
+let historicalFetchSeq = 0;
+/** 会话激活时拉取一次(壳桥缺失/失败 → null,静默保持现状) */
+watch(
+  () => rawState.activeSessionId,
+  (sid) => {
+    if (!sid) return;
+    if (historicalDurationsBySession.value[sid] !== undefined) return;
+    const bridge =
+      typeof window === 'undefined'
+        ? undefined
+        : (
+            window as unknown as {
+              desktop?: { stats?: { getTurnDurations?: (s: string) => Promise<unknown> } };
+            }
+          ).desktop?.stats?.getTurnDurations;
+    if (typeof bridge !== 'function') {
+      historicalDurationsBySession.value = {
+        ...historicalDurationsBySession.value,
+        [sid]: null,
+      };
+      return;
+    }
+    const token = ++historicalFetchSeq;
+    void fetchHistoricalDurations(sid, bridge).then((durations) => {
+      // 会话已切换:丢弃迟到响应
+      if (token !== historicalFetchSeq) return;
+      historicalDurationsBySession.value = {
+        ...historicalDurationsBySession.value,
+        [sid]: durations,
+      };
+    });
+  },
+  { immediate: true },
+);
 
 /** The MAIN agent of the active session has a turn in flight — the working
  *  moon's authoritative half (the optimistic `inFlight` window covers the gap

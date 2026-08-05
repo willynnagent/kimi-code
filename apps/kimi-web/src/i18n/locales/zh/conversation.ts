@@ -10,6 +10,10 @@ export default {
   moreWorkspaces: '更多项目 ({count})',
   compacting: '正在压缩上下文…',
   workingElapsed: '工作中 · {elapsed}',
+  /** F20:turn 尾部的定格耗时(Codex 风格:"已处理 1h 54m 34s") */
+  turnDuration: {
+    processed: '已处理 {duration}',
+  },
   compactedPlain: '上下文已压缩',
   compactedAuto: '已自动压缩上下文',
   compactedTokens: '（{before} → {after} tokens）',

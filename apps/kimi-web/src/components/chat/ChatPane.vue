@@ -718,7 +718,9 @@ function isStreamingRenderBlock(turn: ChatTurn, block: { sourceIndex: number }):
         </template>
         <div v-if="turn.id !== streamingTurnId && isAssistantRunEnd(ti) && (assistantRunFinalText(ti).trim().length > 0 || turn.durationMs !== undefined)" class="a-msg-ft">
           <Tooltip :text="`${turn.durationMs} ms`">
-            <span v-if="turn.durationMs !== undefined" class="a-duration">{{ formatDuration(turn.durationMs) }}</span>
+            <span v-if="turn.durationMs !== undefined" class="a-duration">{{
+              t('conversation.turnDuration.processed', { duration: formatDuration(turn.durationMs) })
+            }}</span>
           </Tooltip>
           <TurnChangesFooter v-if="sessionId !== undefined" :session-id="sessionId" :turn="turn" />
           <!-- F13:localhost 预览入口;仅在最新 assistant run 的 footer 出现 -->

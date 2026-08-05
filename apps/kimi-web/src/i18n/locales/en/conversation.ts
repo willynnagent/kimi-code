@@ -10,6 +10,10 @@ export default {
   moreWorkspaces: 'More workspaces ({count})',
   compacting: 'Compacting context…',
   workingElapsed: 'Working · {elapsed}',
+  /** F20:settled turn footer duration (Codex style: "Processed 1h 54m 34s") */
+  turnDuration: {
+    processed: 'Processed {duration}',
+  },
   compactedPlain: 'Context compacted',
   compactedAuto: 'Context auto-compacted',
   compactedTokens: ' ({before} → {after} tokens)',
