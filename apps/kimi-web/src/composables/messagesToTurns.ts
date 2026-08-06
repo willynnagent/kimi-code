@@ -479,7 +479,7 @@ function buildCronTurn(msg: AppMessage, no: number, kind: 'cron_job' | 'cron_mis
  * arrives via message metadata (see toProtocolMessage in
  * @moonshot-ai/agent-core).
  */
-function isDisplayableUserMessage(msg: AppMessage): boolean {
+export function isDisplayableUserMessage(msg: AppMessage): boolean {
   const origin = msg.metadata?.['origin'] as { kind?: string; trigger?: string } | undefined;
   const kind = origin?.kind;
   if (kind === undefined || kind === 'user') return true;

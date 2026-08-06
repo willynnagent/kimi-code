@@ -264,6 +264,8 @@ export interface ChatTurn {
   createdAt?: string;
   /** Client-side measured duration from turn.started to turn.ended (ms). */
   durationMs?: number;
+  /** F20 三轮:对话段进行中(exchange 未定格)的整秒数,每秒递增;定格后走 durationMs。 */
+  segmentElapsedSeconds?: number | null;
   /** Skill activation metadata: when a user turn was triggered by a slash
       command (/skill), this holds the skill name and args for display. */
   skillActivation?: { name: string; args?: string };

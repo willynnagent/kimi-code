@@ -716,11 +716,20 @@ function isStreamingRenderBlock(turn: ChatTurn, block: { sourceIndex: number }):
           />
           <ToolCall v-else-if="blk.kind === 'tool'" :tool="blk.tool" mobile :tool-diff-panel="toolDiffPanel" @open-media="emit('openMedia', $event)" @open-file="emit('openFile', $event)" @open-tool-diff="emit('openToolDiff', $event)" @open-agent="emit('openAgent', $event)" />
         </template>
-        <div v-if="turn.id !== streamingTurnId && isAssistantRunEnd(ti) && (assistantRunFinalText(ti).trim().length > 0 || turn.durationMs !== undefined)" class="a-msg-ft">
+        <div
+          v-if="turn.id !== streamingTurnId && isAssistantRunEnd(ti) && (assistantRunFinalText(ti).trim().length > 0 || turn.durationMs !== undefined || turn.segmentElapsedSeconds !== undefined)"
+          class="a-msg-ft"
+        >
           <Tooltip :text="`${turn.durationMs} ms`">
             <span v-if="turn.durationMs !== undefined" class="a-duration">{{
               t('conversation.turnDuration.processed', { duration: formatDuration(turn.durationMs) })
             }}</span>
+            <!-- F20 三轮:对话段进行中(后台等待/提问等待期间表不停) -->
+            <span
+              v-else-if="turn.segmentElapsedSeconds !== undefined && turn.segmentElapsedSeconds !== null"
+              class="a-duration"
+              >{{ t('conversation.turnDuration.processing', { elapsed: formatElapsedSeconds(turn.segmentElapsedSeconds) }) }}</span
+            >
           </Tooltip>
           <TurnChangesFooter v-if="sessionId !== undefined" :session-id="sessionId" :turn="turn" />
           <!-- F13:localhost 预览入口;仅在最新 assistant run 的 footer 出现 -->

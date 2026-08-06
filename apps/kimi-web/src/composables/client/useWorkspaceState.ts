@@ -259,6 +259,8 @@ export interface UseWorkspaceStateDeps {
   saveHiddenWorkspacesToStorage: (roots: string[]) => void;
   goalErrorMessage: (err: unknown) => string | undefined;
   resetFastMoon: () => void;
+  /** F20 三轮:真实用户提交 prompt 时回调(对话段锚点);合成 prompt 不触发 */
+  onUserPromptSubmit?: (sessionId: string) => void;
   initialized: Ref<boolean>;
   /** Diagnostic for the connecting splash, set by checkAuth on transient
    *  failures and cleared once a check gets through. */
@@ -1457,6 +1459,8 @@ export function useWorkspaceState(rawState: ExtendedState, deps: UseWorkspaceSta
     text: string,
     attachments?: PromptAttachment[],
   ): Promise<'ok' | 'rejected' | 'uncertain'> {
+    // F20 三轮:真实用户提交 → 新对话段锚点(合成 prompt 不经此路径,不重置)
+    deps.onUserPromptSubmit?.(sid);
     // Mark this session as having a prompt in flight BEFORE any await, so a racing
     // sendPrompt sees it and enqueues. Cleared when the main turn ends (or the
     // prompt dies without one). beginLocalTurn also bumps the snapshot generation

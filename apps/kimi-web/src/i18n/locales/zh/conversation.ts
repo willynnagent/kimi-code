@@ -13,6 +13,7 @@ export default {
   /** F20:turn 尾部的定格耗时(Codex 风格:"已处理 1h 54m 34s") */
   turnDuration: {
     processed: '已处理 {duration}',
+    processing: '处理中 · {elapsed}',
   },
   compactedPlain: '上下文已压缩',
   compactedAuto: '已自动压缩上下文',

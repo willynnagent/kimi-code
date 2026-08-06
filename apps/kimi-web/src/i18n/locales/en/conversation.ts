@@ -13,6 +13,7 @@ export default {
   /** F20:settled turn footer duration (Codex style: "Processed 1h 54m 34s") */
   turnDuration: {
     processed: 'Processed {duration}',
+    processing: 'Processing · {elapsed}',
   },
   compactedPlain: 'Context compacted',
   compactedAuto: 'Context auto-compacted',

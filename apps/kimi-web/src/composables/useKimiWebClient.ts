@@ -78,8 +78,14 @@ import type {
 import { createInitialState, reduceAppEvent, type CompactionStatus, type KimiClientState } from '../api/daemon/eventReducer';
 import { isPlaceholderSessionUsage, toAppEvent } from '../api/daemon/mappers';
 
-import { messagesToTurns } from './messagesToTurns';
-import { applyHistoricalDurations, fetchHistoricalDurations } from './useTurnDurations';
+import { messagesToTurns, isDisplayableUserMessage } from './messagesToTurns';
+import {
+  applyHistoricalDurations,
+  applySegmentDisplay,
+  createSegmentTracker,
+  fetchHistoricalSegments,
+  type TurnDurationSegment,
+} from './useTurnDurations';
 import { latestTodos } from './latestTodos';
 import { buildSwarmGroups, countSwarmMembers, swarmMembersByToolCall } from './swarmGroups';
 import type { SwarmGroup, SwarmMember } from './swarmGroups';
@@ -1976,19 +1982,58 @@ const turns = computed<ChatTurn[]>(() => {
     turnActive.value,
     rawState.planReviewByToolCallId,
   );
-  // F20:历史 turn 耗时(经壳 IPC 只读 wire.jsonl turn.ended;live 时长优先不覆盖)
-  return applyHistoricalDurations(base, historicalDurationsBySession.value[sid]);
+  // F20 三轮:历史段墙钟(壳 IPC 只读 wire)+ live 段显示(定格/处理中/补定格)
+  void segmentVersion.value;
+  const live = segmentTracker.display(sid);
+  const liveCount = live !== null && live.settledMs === 0 ? 1 : 0;
+  const hist = applyHistoricalDurations(base, historicalSegmentsBySession.value[sid], liveCount);
+  return applySegmentDisplay(hist, live, segmentTracker.lastBackfill(sid), segmentClock.value);
 });
 
-// F20:历史 turn 耗时的每会话映射(从新数数组);undefined = 尚未拉取,null = 无数据。
-const historicalDurationsBySession = ref<Record<string, (number | undefined)[] | null>>({});
-let historicalFetchSeq = 0;
+// F20 三轮:历史对话段(从新数数组,值 = 段墙钟 ms;null = 进行中)与 live 段状态机。
+const historicalSegmentsBySession = ref<Record<string, (number | null)[] | null>>({});
+const segmentTracker = createSegmentTracker();
+/** 段状态版本号:onUserPrompt/onTurnEnded/restoreAnchor 后递增,驱动 turns 重算
+ *  (segmentTracker 内部是非响应式 Map,状态变化必须显式 bump) */
+const segmentVersion = ref(0);
+/** 每秒 tick:段进行中时递增,驱动"处理中 · Ns"重算(后台等待/提问等待期间持续) */
+const segmentClock = ref(0);
+let segmentClockTimer: ReturnType<typeof setInterval> | null = null;
+watch(
+  () => [rawState.activeSessionId, segmentVersion.value] as const,
+  () => {
+    const sid = rawState.activeSessionId ?? '';
+    const running = segmentTracker.isRunning(sid);
+    if (running && segmentClockTimer === null) {
+      segmentClockTimer = setInterval(() => {
+        segmentClock.value = (segmentClock.value + 1) % Number.MAX_SAFE_INTEGER;
+      }, 1000);
+    } else if (!running && segmentClockTimer !== null) {
+      clearInterval(segmentClockTimer);
+      segmentClockTimer = null;
+    }
+  },
+  { immediate: true },
+);
+/** 后台任务清空 → 段补定格(最后 turn 已结束但无后续通知 turn 的场景) */
+watch(
+  () => activeAppTasks.value.some((t) => t.status === 'running'),
+  (hasRunning) => {
+    const sid = rawState.activeSessionId;
+    if (!sid || hasRunning) return;
+    segmentTracker.settleIfIdle(sid);
+    segmentVersion.value += 1;
+  },
+  { immediate: true },
+);
+
+let segmentFetchSeq = 0;
 /** 会话激活时拉取一次(壳桥缺失/失败 → null,静默保持现状) */
 watch(
   () => rawState.activeSessionId,
   (sid) => {
     if (!sid) return;
-    if (historicalDurationsBySession.value[sid] !== undefined) return;
+    if (historicalSegmentsBySession.value[sid] !== undefined) return;
     const bridge =
       typeof window === 'undefined'
         ? undefined
@@ -1998,20 +2043,37 @@ watch(
             }
           ).desktop?.stats?.getTurnDurations;
     if (typeof bridge !== 'function') {
-      historicalDurationsBySession.value = {
-        ...historicalDurationsBySession.value,
+      historicalSegmentsBySession.value = {
+        ...historicalSegmentsBySession.value,
         [sid]: null,
       };
       return;
     }
-    const token = ++historicalFetchSeq;
-    void fetchHistoricalDurations(sid, bridge).then((durations) => {
-      // 会话已切换:丢弃迟到响应
-      if (token !== historicalFetchSeq) return;
-      historicalDurationsBySession.value = {
-        ...historicalDurationsBySession.value,
-        [sid]: durations,
-      };
+    const token = ++segmentFetchSeq;
+    void fetchHistoricalSegments(sid, bridge).then((segments: TurnDurationSegment[] | null) => {
+      if (token !== segmentFetchSeq) return;
+      if (segments !== null && segments.length > 0) {
+        // 段列表按 anchorTurnId 升序(时间序)= 从旧到新;reverse 得从新数数组
+        const newestFirst = segments
+          .slice()
+          .reverse()
+          .map((s) => s.wallClockMs);
+        historicalSegmentsBySession.value = {
+          ...historicalSegmentsBySession.value,
+          [sid]: newestFirst,
+        };
+        // 进行中段(墙钟 null,最后一段)恢复 live 锚点
+        const last = segments[segments.length - 1];
+        if (last !== undefined && last.wallClockMs === null) {
+          segmentTracker.restoreAnchor(sid, last.startTime);
+          segmentVersion.value += 1;
+        }
+      } else {
+        historicalSegmentsBySession.value = {
+          ...historicalSegmentsBySession.value,
+          [sid]: null,
+        };
+      }
     });
   },
   { immediate: true },
@@ -2693,6 +2755,11 @@ const workspaceState = useWorkspaceState(rawState, {
   saveHiddenWorkspacesToStorage,
   goalErrorMessage,
   resetFastMoon: appearance.resetFastMoon,
+  // F20 三轮:真实用户提交 → 对话段锚点(合成 prompt 不经 submitPromptInternal)
+  onUserPromptSubmit: (sid) => {
+    segmentTracker.onUserPrompt(sid);
+    segmentVersion.value += 1;
+  },
   initialized,
   connectIssue,
   selectedDiffPath,
@@ -2737,6 +2804,26 @@ function clearWorkingFlags(sid: string): void {
 }
 
 function onMainTurnEnd(sid: string, status: 'idle' | 'aborted', turnWasActive: boolean): void {
+  // F20 三轮:turn 结束 → 段状态机记录时刻;无进行中后台任务时定格当前段。
+  // (后台等待/提问等待期间段保持"处理中",表不停)
+  // 重启/重开恢复场景:段锚点丢失(壳无法从 wire 感知后台任务),从最新可显示
+  // user 消息的 created_at 推导(≈ 段首真实 prompt 时刻)。
+  if (!segmentTracker.hasAnchor(sid)) {
+    const msgs = rawState.messagesBySession[sid] ?? [];
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      const m = msgs[i]!;
+      if (m.role === 'user' && isDisplayableUserMessage(m) && m.createdAt) {
+        const anchor = new Date(m.createdAt).getTime();
+        if (Number.isFinite(anchor)) segmentTracker.restoreAnchor(sid, anchor);
+        break;
+      }
+    }
+  }
+  segmentTracker.onTurnEnded(
+    sid,
+    (rawState.tasksBySession[sid] ?? []).some((t) => t.status === 'running'),
+  );
+  segmentVersion.value += 1;
   // Capture before finishPromptLocal drops it — it keys the completion
   // notification's dedup tag so each finished turn alerts once.
   const finishedPromptId = rawState.promptIdBySession[sid];
